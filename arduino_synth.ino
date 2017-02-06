@@ -163,29 +163,23 @@ uint16_t lfo(uint32_t in) {
 
 void audioHandler() {
   int i;
-  for (i = 0; i < VOICENUM; i++) 
-    ulPhaseAccumulator[i] += ulPhaseIncrement[i];   // 32 bit phase increment, see below
-  //Serial.println("a: " + ulPhaseAccumulator);
-  //Serial.println(ulPhaseAccumulator);  
-  //Serial.println("c");  
-  // if the phase accumulator over flows - we have been through one cycle at the current pitch,
-  // now we need to reset the grains ready for our next cycle
+  uint32_t ulOutput = 0;  
   for (i = 0; i < VOICENUM; i++) {
+    ulPhaseAccumulator[i] += ulPhaseIncrement[i];   // 32 bit phase increment, see below
+    // if the phase accumulator over flows - we have been through one cycle at the current pitch,
+    // now we need to reset the grains ready for our next cycle
+
     if(ulPhaseAccumulator[i] > SAMPLES_PER_CYCLE_FIXEDPOINT)
     {
       // DB 02/Jan/2012 - carry the remainder of the phase accumulator
-      Serial.println(ulPhaseAccumulator[i]);
       ulPhaseAccumulator[i] -= SAMPLES_PER_CYCLE_FIXEDPOINT;
     }
-  }
-  //Serial.print("b");
-  // get the current sample  
-  //uint32_t ulOutput = nSineTable[ulPhaseAccumulator[0]>>20] ^ nSquareTable[ulPhaseAccumulator[1]>>20]; 
-  //uint32_t ulOutput = ((nSineTable[ulPhaseAccumulator[0]>>20] + nSquareTable[ulPhaseAccumulator[1]>>20]) >> 1) * envelopeVolume; 
-  //uint32_t ulOutput = (nSineTable[ulPhaseAccumulator[0]>>20] * envelopeVolume[0]) ^ (nSquareTable[ulPhaseAccumulator[1]>>20] * envelopeVolume[1]) ^ (nSineTable[ulPhaseAccumulator[2]>>20] * envelopeVolume[2]) ^ (nSquareTable[ulPhaseAccumulator[3]>>20] * envelopeVolume[3]); 
-  //uint32_t ulOutput = (nSineTable[ulPhaseAccumulator[0]>>20] * envelopeVolume[0]) ^ (nSquareTable[ulPhaseAccumulator[1]>>20] * 0) ^ (nSineTable[ulPhaseAccumulator[2]>>20] * 0) ^ (nSquareTable[ulPhaseAccumulator[3]>>20] * 0); 
-  uint32_t ulOutput = 0;
-  for (i = 0; i < VOICENUM; i++) {
+    
+    // get the current sample  
+    //uint32_t ulOutput = nSineTable[ulPhaseAccumulator[0]>>20] ^ nSquareTable[ulPhaseAccumulator[1]>>20]; 
+    //uint32_t ulOutput = ((nSineTable[ulPhaseAccumulator[0]>>20] + nSquareTable[ulPhaseAccumulator[1]>>20]) >> 1) * envelopeVolume; 
+    //uint32_t ulOutput = (nSineTable[ulPhaseAccumulator[0]>>20] * envelopeVolume[0]) ^ (nSquareTable[ulPhaseAccumulator[1]>>20] * envelopeVolume[1]) ^ (nSineTable[ulPhaseAccumulator[2]>>20] * envelopeVolume[2]) ^ (nSquareTable[ulPhaseAccumulator[3]>>20] * envelopeVolume[3]); 
+    //uint32_t ulOutput = (nSineTable[ulPhaseAccumulator[0]>>20] * envelopeVolume[0]) ^ (nSquareTable[ulPhaseAccumulator[1]>>20] * 0) ^ (nSineTable[ulPhaseAccumulator[2]>>20] * 0) ^ (nSquareTable[ulPhaseAccumulator[3]>>20] * 0); 
     //ulOutput = ulOutput ^ (nSineTable[ulPhaseAccumulator[i]>>20] * envelopeVolume[i]);
     ulOutput = ulOutput + filter((nSineTable[ulPhaseAccumulator[i]>>20] * envelopeVolume[i]), q[i], f[i], fb[i]);
   }
