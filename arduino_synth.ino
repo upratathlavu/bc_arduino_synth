@@ -356,6 +356,16 @@ void lcdHandler() {
   lcd.print("val: ");  
   lcd.print(val);  
   }
+
+void playSound() {
+  Timer3.attachInterrupt(audioHandler).setFrequency(44100).start(); // start the audio interrupt at 44.1kHz      
+  Timer4.attachInterrupt(sequencer).setPeriod(200000).start();     
+  }
+
+void stopSound() {
+  Timer3.stop();
+  Timer4.stop();
+  }
   
 void setup() {
   Serial.begin(9600);  
@@ -381,7 +391,11 @@ void setup() {
   for (int i = 0; i < N; i++) {
     pinMode(i + 30, OUTPUT);
   }  
-  
+
+  // temp play stop buttons
+  pinMode(52, INPUT);
+  pinMode(53, INPUT);
+    
   createSineTable();
   createSquareTable(100);  
   //Serial.println(envelopeVolume[0]);  
@@ -389,8 +403,7 @@ void setup() {
   analogWrite(DAC0, 0);
   analogWrite(DAC1, 0);
 
-  Timer3.attachInterrupt(audioHandler).setFrequency(44100).start(); // start the audio interrupt at 44.1kHz      
-  Timer4.attachInterrupt(sequencer).setPeriod(200000).start(); 
+  playSound();
   Serial.println(SAMPLES_PER_CYCLE_FIXEDPOINT);    
 }
 
@@ -402,4 +415,9 @@ void loop() {
   //Serial.println(envelopeProgress[3]);    
   envelopeHandler();
   buttonsHandler();
+
+  if (digitalRead(52) == LOW)
+    stopSound();
+  if (digitalRead(53) == LOW)
+    playSound();
 }
