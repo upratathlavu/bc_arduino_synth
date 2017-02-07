@@ -181,7 +181,10 @@ void audioHandler() {
     //uint32_t ulOutput = (nSineTable[ulPhaseAccumulator[0]>>20] * envelopeVolume[0]) ^ (nSquareTable[ulPhaseAccumulator[1]>>20] * envelopeVolume[1]) ^ (nSineTable[ulPhaseAccumulator[2]>>20] * envelopeVolume[2]) ^ (nSquareTable[ulPhaseAccumulator[3]>>20] * envelopeVolume[3]); 
     //uint32_t ulOutput = (nSineTable[ulPhaseAccumulator[0]>>20] * envelopeVolume[0]) ^ (nSquareTable[ulPhaseAccumulator[1]>>20] * 0) ^ (nSineTable[ulPhaseAccumulator[2]>>20] * 0) ^ (nSquareTable[ulPhaseAccumulator[3]>>20] * 0); 
     //ulOutput = ulOutput ^ (nSineTable[ulPhaseAccumulator[i]>>20] * envelopeVolume[i]);
-    ulOutput = ulOutput + filter((nSineTable[ulPhaseAccumulator[i]>>20] * envelopeVolume[i]), q[i], f[i], fb[i]);
+    // filtered:
+    //ulOutput = ulOutput + filter((nSineTable[ulPhaseAccumulator[i]>>20] * envelopeVolume[i]), q[i], f[i], fb[i]);
+    // nonfiltered: 
+    ulOutput = ulOutput + (nSineTable[ulPhaseAccumulator[i]>>20] * envelopeVolume[i]);
   }
 
   //ulOutput = ulOutput + filter((nSineTable[ulPhaseAccumulator[0]>>20] * envelopeVolume[0]), q[0], f[0]);
