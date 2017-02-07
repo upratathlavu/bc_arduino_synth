@@ -174,7 +174,6 @@ void audioHandler() {
     if(ulPhaseAccumulator[i] > SAMPLES_PER_CYCLE_FIXEDPOINT)
     {
       // DB 02/Jan/2012 - carry the remainder of the phase accumulator
-      Serial.println(ulPhaseAccumulator[i]);
       ulPhaseAccumulator[i] -= SAMPLES_PER_CYCLE_FIXEDPOINT;
     }
   }
@@ -394,8 +393,8 @@ void setup() {
   }  
 
   // temp play stop buttons
-  //pinMode(52, INPUT);
-  //pinMode(53, INPUT);
+  pinMode(52, INPUT);
+  pinMode(53, INPUT);
     
   createSineTable();
   createSquareTable(100);  
@@ -404,9 +403,7 @@ void setup() {
   analogWrite(DAC0, 0);
   analogWrite(DAC1, 0);
 
-  Timer3.attachInterrupt(audioHandler).setFrequency(44100).start(); // start the audio interrupt at 44.1kHz      
-  Timer4.attachInterrupt(sequencer).setPeriod(200000).start();     
-  //playSound();
+  playSound();
   Serial.println(SAMPLES_PER_CYCLE_FIXEDPOINT);    
 }
 
@@ -419,6 +416,8 @@ void loop() {
   envelopeHandler();
   buttonsHandler();
 
-  //if (digitalRead(52) == HIGH)
-  //  stopSound();
+  if (digitalRead(52) == LOW)
+    stopSound();
+  if (digitalRead(53) == LOW)
+    playSound();
 }
