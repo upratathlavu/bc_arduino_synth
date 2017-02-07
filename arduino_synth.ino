@@ -38,7 +38,7 @@ int val = 0;
 //                                {false, true, false, true, false, true, false, true},
 //                                {false, true, true, true, false, true, true, true},
 //                                {true, false, false, false, true, false, false, false}};
-bool sequences[VOICENUM][8] = { {true, true, false, false, false, false, false, false}, 
+bool sequences[VOICENUM][8] = { {false, false, false, false, false, false, false, false}, 
                                 {false, false, true, true, true, true, true, true},
                                 {false, false, false, false, true, true, false, false},
                                {false, false, false, false, false, false, true, true}};                                
@@ -49,14 +49,20 @@ uint32_t ulPhaseAccumulator[VOICENUM] = {0, 0, 0, 0};
 //volatile uint32_t ulPhaseIncrement[VOICENUM] = {60000, 30000, 10000, 20000};   // 32 bit phase increment, see below
 volatile uint32_t ulPhaseIncrement[VOICENUM] = {120000000, 8000000, 12000000, 15000000};   // 32 bit phase increment, see below
 
-int seqButtonState[N] = {LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW}; 
-int seqLedState[N] = {-1, -1, -1, -1, -1, -1, -1, -1}; 
-
-long lastSeqDebounceTime[N] = {0, 0, 0, 0, 0, 0, 0, 0};  
-long debounceDelay = 50;    
-
-bool sendOn[N] = {true, true, true, true, true, true, true, true};
-bool sendOff[N] = {false, false, false, false, false, false, false, false};
+#define DEBOUNCE 10  // button debouncer, how many ms to debounce, 5+ ms is usually plenty
+// here is where we define the buttons that we'll use. button "1" is the first, button "6" is the 6th, etc
+byte buttons[] = {22, 23, 24, 25, 26, 27, 28, 29, 52, 53}; // the analog 0-5 pins are also known as 14-19
+// This handy macro lets us determine how big the array up above is, by checking the size
+#define NUMBUTTONS sizeof(buttons)
+// we will track if a button is just pressed, just released, or 'currently pressed' 
+byte pressed[NUMBUTTONS], justpressed[NUMBUTTONS], justreleased[NUMBUTTONS];
+  
+//int seqButtonState[N] = {LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW}; 
+int seqLedState[N] = {LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW}; 
+//long lastSeqDebounceTime[N] = {0, 0, 0, 0, 0, 0, 0, 0};  
+//long debounceDelay = 50;    
+//bool sendOn[N] = {true, true, true, true, true, true, true, true};
+//bool sendOff[N] = {false, false, false, false, false, false, false, false};
 
 LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
 
@@ -316,37 +322,49 @@ void sequencer() {
   }
 
 void buttonsHandler() {
-  for (int i = 0; i < N; i++) {
-    seqButtonState[i] = digitalRead(i + 22);
+  static byte previousstate[NUMBUTTONS];
+  static byte currentstate[NUMBUTTONS];  
+  static long lasttime;
+  byte index;
 
-    if ((millis() - lastSeqDebounceTime[i]) > debounceDelay) {
-      if ((seqButtonState[i] == HIGH) && (seqLedState[i] < 0) && sendOn[i] == true) {      // pressed and led off
-        digitalWrite(i + 30, HIGH); 
-        sequences[voiceN][i] = true;
-        ctrl = i;
-        val = 1;
-        seqLedState[i] = -seqLedState[i]; 
-        sendOn[i] = false;                  
-        lastSeqDebounceTime[i] = millis(); 
+  if (millis() < lasttime) { // we wrapped around, lets just try again
+     lasttime = millis();
+  }
+  
+  if ((lasttime + DEBOUNCE) > millis()) {
+    // not enough time has passed to debounce
+    return; 
+  }
+  // ok we have waited DEBOUNCE milliseconds, lets reset the timer
+  lasttime = millis();
+  
+  for (index = 0; index < NUMBUTTONS; index++) {// when we start, we clear out the "just" indicators
+    justreleased[index] = 0;
+    justpressed[index] = 0;
+     
+    currentstate[index] = digitalRead(buttons[index]);   // read the button
+    
+    if (currentstate[index] == previousstate[index]) {
+      if ((pressed[index] == LOW) && (currentstate[index] == LOW)) {
+          // just pressed
+          justpressed[index] = 1;
       }
-      else if ((seqButtonState[i] == LOW) && (seqLedState[i] > 0) && sendOn[i] == false) { // unpressed and led on
-          sendOff[i] = true;        
-        }
-      else if ((seqButtonState[i] == HIGH) && (seqLedState[i] > 0) && sendOff[i] == true) { // pressed and led on
-        digitalWrite(i + 30, LOW);
-        sequences[voiceN][i] = false;        
-        ctrl = i;
-        val = 0;
-        seqLedState[i] = -seqLedState[i]; 
-        sendOff[i] = false;        
-        lastSeqDebounceTime[i] = millis(); 
+      else if ((pressed[index] == HIGH) && (currentstate[index] == HIGH)) {
+          // just released
+          justreleased[index] = 1;
       }
-      else if ((seqButtonState[i] == LOW) && (seqLedState[i] < 0) && sendOff[i] == false) { // unpressed and led off
-          sendOn[i] = true;
-        }
+      pressed[index] = !currentstate[index];  // remember, digital HIGH means NOT pressed
     }
+
+    previousstate[index] = currentstate[index];   // keep a running tally of the buttons
   }
 }
+
+void ledsHandler() {
+  for (int i = 0; i < N; i++) {
+    digitalWrite(i + 30, seqLedState[i]);
+    }
+  }
 
 void lcdHandler() {
   lcd.print("ctrl: ");
@@ -379,20 +397,20 @@ void setup() {
     lcd.print("s");
     //delay(1000);
   }
-  
+
   // buttons
-  for (int i = 0; i < N; i++) {
-    pinMode(i + 22, INPUT);
-  }
+  // Make input & enable pull-up resistors on switch pins
+  for (byte i = 0; i < NUMBUTTONS; i ++)
+    pinMode(buttons[i], INPUT_PULLUP);
+
+  // temp play stop buttons
+  pinMode(52, INPUT_PULLUP);
+  pinMode(53, INPUT_PULLUP);
 
   // LEDs
   for (int i = 0; i < N; i++) {
     pinMode(i + 30, OUTPUT);
   }  
-
-  // temp play stop buttons
-  pinMode(52, INPUT);
-  pinMode(53, INPUT);
     
   createSineTable();
   createSquareTable(100);  
@@ -413,9 +431,21 @@ void loop() {
   //Serial.println(envelopeProgress[3]);    
   envelopeHandler();
   buttonsHandler();
+  ledsHandler();
 
-  if (digitalRead(52) == LOW)
+  if (pressed[8]) // or justpressed? both works
     stopSound();
-  if (digitalRead(53) == LOW)
+  if (pressed[9]) // or justpressed? both works
     playSound();
+
+  for (int i = 0; i < (NUMBUTTONS - 2); i++) {   
+    if (pressed[i] && sequences[voiceN][i]) {         // justpressed works equally bad here
+      sequences[voiceN][i] = false;
+      seqLedState[i] = LOW;
+    }
+    else if (pressed[i] && !sequences[voiceN][i]) {   // justpressed works equally bad here
+      sequences[voiceN][i] = true;
+      seqLedState[i] = HIGH;      
+    }
+  }
 }
