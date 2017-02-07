@@ -58,7 +58,7 @@ byte buttons[] = {22, 23, 24, 25, 26, 27, 28, 29, 52, 53}; // the analog 0-5 pin
 byte pressed[NUMBUTTONS], justpressed[NUMBUTTONS], justreleased[NUMBUTTONS];
   
 //int seqButtonState[N] = {LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW}; 
-int seqLedState[N] = {-1, -1, -1, -1, -1, -1, -1, -1}; 
+int seqLedState[N] = {LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW}; 
 //long lastSeqDebounceTime[N] = {0, 0, 0, 0, 0, 0, 0, 0};  
 //long debounceDelay = 50;    
 //bool sendOn[N] = {true, true, true, true, true, true, true, true};
@@ -360,6 +360,12 @@ void buttonsHandler() {
   }
 }
 
+void ledsHandler() {
+  for (int i = 0; i < N; i++) {
+    digitalWrite(i + 30, seqLedState[i]);
+    }
+  }
+
 void lcdHandler() {
   lcd.print("ctrl: ");
   lcd.print(ctrl);  
@@ -425,6 +431,7 @@ void loop() {
   //Serial.println(envelopeProgress[3]);    
   envelopeHandler();
   buttonsHandler();
+  ledsHandler();
 
   if (pressed[8]) // or justpressed? both works
     stopSound();
@@ -434,9 +441,11 @@ void loop() {
   for (int i = 0; i < (NUMBUTTONS - 2); i++) {   
     if (pressed[i] && sequences[voiceN][i]) {         // justpressed works equally bad here
       sequences[voiceN][i] = false;
+      seqLedState[i] = LOW;
     }
     else if (pressed[i] && !sequences[voiceN][i]) {   // justpressed works equally bad here
       sequences[voiceN][i] = true;
+      seqLedState[i] = HIGH;      
     }
   }
 }
