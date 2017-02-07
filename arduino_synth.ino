@@ -174,7 +174,6 @@ void audioHandler() {
     if(ulPhaseAccumulator[i] > SAMPLES_PER_CYCLE_FIXEDPOINT)
     {
       // DB 02/Jan/2012 - carry the remainder of the phase accumulator
-      Serial.println(ulPhaseAccumulator[i]);
       ulPhaseAccumulator[i] -= SAMPLES_PER_CYCLE_FIXEDPOINT;
     }
   }
