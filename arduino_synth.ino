@@ -11,12 +11,14 @@
 #define N 8 
 
 #define VOICENUM 4
+int32_t globalOut;
+
 //int attackTime[VOICENUM] = {50, 30, 60, 80};
 //int decayTime[VOICENUM] = {50, 30, 60, 70};
 //int sustainTime[VOICENUM] = {200, 300, 300, 150};
 //int sustainLevel = 400;
 //int releaseTime[VOICENUM] = {50, 30, 40, 50};
-int attackTime[VOICENUM] = {1, 5, 5, 5};
+int attackTime[VOICENUM] = {2, 5, 5, 5};        // value < 1 causes clicks (only at high frequency sounds?)
 int decayTime[VOICENUM] = {3, 10, 10, 10};
 int sustainTime[VOICENUM] = {10, 10, 10, 10};
 int sustainLevel = 400;
@@ -38,10 +40,18 @@ int val = 0;
 //                                {false, true, false, true, false, true, false, true},
 //                                {false, true, true, true, false, true, true, true},
 //                                {true, false, false, false, true, false, false, false}};
-bool sequences[VOICENUM][8] = { {false, false, false, false, false, false, false, false}, 
+/*bool sequences[VOICEUM][8] = { {false, false, false, false, false, false, false, false}, 
                                 {false, false, true, true, true, true, true, true},
                                 {false, false, false, false, true, true, false, false},
-                               {false, false, false, false, false, false, true, true}};                                
+                               {false, false, false, false, false, false, true, true}};*/
+/*bool sequences[VOICENUM][8] = { {true, true, true, true, true, true, true, true},
+                                {false, false, false, false, false, false, false, true},
+                                {false, false, false, false, false, false, false, true},
+                               {false, false, false, false, false, false, false, true}};*/
+bool sequences[VOICENUM][8] = { {true, true, false, false, false, false, false, false},
+                                {false, false, true, true, false, false, false, false},
+                                {false, false, false, false, true, true, false, false},
+                               {false, false, false, false, false, false, true, true}};                               
 // the phase accumulator points to the current sample in our wavetable
 uint32_t ulPhaseAccumulator[VOICENUM] = {0, 0, 0, 0};
 // the phase increment controls the rate at which we move through the wave table
@@ -70,6 +80,8 @@ uint16_t nSineTable[WAVE_SAMPLES];
 uint16_t nSquareTable[WAVE_SAMPLES];
 uint16_t nSawTable[WAVE_SAMPLES];
 uint16_t nTriangleTable[WAVE_SAMPLES];
+
+uint16_t * soundType[VOICENUM] = {&nSineTable[0], &nSquareTable[0], &nSawTable[0], &nTriangleTable[0]};
 
 void createSineTable() {
   for (uint32_t nIndex = 0; nIndex < WAVE_SAMPLES; nIndex++) {
@@ -119,9 +131,12 @@ void createTriangleTable()
 #define FX_SHIFT 8
 #define SHIFTED_1 256
 
-uint8_t q[VOICENUM] = {0.05, 0.2, 0.2, 0.5};
-uint8_t f[VOICENUM] = {1000, 1000, 1000, 1000};
+uint8_t q[VOICENUM] = {0.2, 0.2, 0.2, 0.5};
+uint8_t q_out = 0.2;
+uint8_t f[VOICENUM] = {50, 50, 50, 50};
+uint8_t f_out = 62;
 unsigned int fb[VOICENUM] = {q[0] + fxmul(q[0], (int)SHIFTED_1 - (f[0] / 128)), q[1] + fxmul(q[1], (int)SHIFTED_1 - (f[1] / 128)), q[2] + fxmul(q[2], (int)SHIFTED_1 - (f[2] / 128)), q[3] + fxmul(q[3], (int)SHIFTED_1 - (f[3] / 128))};
+unsigned int fb_out = q_out + fxmul(q_out, (int)SHIFTED_1 - (f_out / 128));
 
 int buf0,buf1;
 
@@ -169,7 +184,7 @@ uint16_t lfo(uint32_t in) {
 
 void audioHandler() {
   int i;
-  uint32_t ulOutput = 0;  
+  uint32_t ulOutput[VOICENUM];  
   for (i = 0; i < VOICENUM; i++) {
     ulPhaseAccumulator[i] += ulPhaseIncrement[i];   // 32 bit phase increment, see below
     // if the phase accumulator over flows - we have been through one cycle at the current pitch,
@@ -178,7 +193,8 @@ void audioHandler() {
     if(ulPhaseAccumulator[i] > SAMPLES_PER_CYCLE_FIXEDPOINT)
     {
       // DB 02/Jan/2012 - carry the remainder of the phase accumulator
-      ulPhaseAccumulator[i] -= SAMPLES_PER_CYCLE_FIXEDPOINT;
+      ulPhaseAccumulator[i] -= SAMPLES_PER_CYCLE_FIXEDPOINT; 
+      //ulPhaseAccumulator[i] = 0;
     }
     
     // get the current sample  
@@ -190,7 +206,12 @@ void audioHandler() {
     // filtered:
     //ulOutput = ulOutput + filter((nSineTable[ulPhaseAccumulator[i]>>20] * envelopeVolume[i]), q[i], f[i], fb[i]);
     // nonfiltered: 
-    ulOutput = ulOutput + (nSineTable[ulPhaseAccumulator[i]>>20] * envelopeVolume[i]);
+    //ulOutput = ulOutput + (nSineTable[ulPhaseAccumulator[i]>>20] * envelopeVolume[i]);
+    //ulOutput[i] = filter(*(&nSineTable[0] + (ulPhaseAccumulator[i]>>20)) * envelopeVolume[i], q[i], f[i], fb[i]); // no loud noise at start, when filter is here and not in for loop sampleOsc += ulOutput[i]
+    //ulOutput[i] = *(&nSineTable[0] + (ulPhaseAccumulator[i]>>20)) * envelopeVolume[i] >> 10;
+    ulOutput[i] = *(soundType[i] + (ulPhaseAccumulator[i]>>20)) * envelopeVolume[i] >> 10;
+    //ulOutput[i] = *(&nSineTable[0] + (ulPhaseAccumulator[i]>>20));
+    //globalOut = ulOutput[i];  // for debugging (Serial.println())
   }
 
   //ulOutput = ulOutput + filter((nSineTable[ulPhaseAccumulator[0]>>20] * envelopeVolume[0]), q[0], f[0]);
@@ -204,16 +225,29 @@ void audioHandler() {
   //ulOutput = ulOutput + (nTriangleTable[ulPhaseAccumulator[3]>>20] * envelopeVolume[3]); 
 
   //ulOutput = lfo(ulOutput);
-   
-  float mainVolume = 0.005;                  // 0.00625 = 1/160; 0.0125 = 1/80; 0.025 = 1/40; 0.05 = 1/20; 0.1 = 1/10; 0.2 = 1/5; 0.5 = 1/2
-  ulOutput = ulOutput * mainVolume;
+
+  int32_t sampleOsc;
+  for (int i = 0; i < VOICENUM; i++)
+  {
+    sampleOsc += ulOutput[i];
+  } 
   
+  sampleOsc = sampleOsc / 4;
+
+  
+  //globalOut = sampleOsc;
+
+  float mainVolume = 1;                  // 0.00625 = 1/160; 0.0125 = 1/80; 0.025 = 1/40; 0.05 = 1/20; 0.1 = 1/10; 0.2 = 1/5; 0.5 = 1/2
+  //sampleOsc = filter(sampleOsc, q_out, f_out, fb_out) * mainVolume;
+  sampleOsc = sampleOsc * mainVolume;
+
+
   // write to DAC0
   dacc_set_channel_selection(DACC_INTERFACE, 0);
-  dacc_write_conversion_data(DACC_INTERFACE, ulOutput);
+  dacc_write_conversion_data(DACC_INTERFACE, sampleOsc);
   // write to DAC1
   //dacc_set_channel_selection(DACC_INTERFACE, 1);
-  //dacc_write_conversion_data(DACC_INTERFACE, ulOutput);
+  //dacc_write_conversion_data(DACC_INTERFACE, sampleOsc);
   //Serial.println("a");
 }
 
@@ -242,7 +276,7 @@ void envelopeHandler() {
           envelopeProgress[i]= 1;
           }
         else {
-          envelopeVolume[i] = map(millis(), attackStartTime[i], attackStartTime[i] + attackTime[i], 0, 63);
+          envelopeVolume[i] = map(millis(), attackStartTime[i], attackStartTime[i] + attackTime[i], 0, 1023);
           //Serial.print("i: ");          
           //Serial.print(i);
           //Serial.print(", envelopeVolume[3]: ");
@@ -257,7 +291,7 @@ void envelopeHandler() {
           envelopeProgress[i] = 2;
           }    
         else {
-          envelopeVolume[i] = map(millis(), decayStartTime[i], decayStartTime[i] + decayTime[i], 63, 50);
+          envelopeVolume[i] = map(millis(), decayStartTime[i], decayStartTime[i] + decayTime[i], 1023, 768);
           //Serial.println(envelopeVolume);        
           }        
         break;
@@ -269,7 +303,7 @@ void envelopeHandler() {
           envelopeProgress[i] = 3;
           }    
         else {
-          envelopeVolume[i] = 50;
+          envelopeVolume[i] = 768;
           //Serial.println(envelopeVolume);        
         }
         break;
@@ -280,7 +314,7 @@ void envelopeHandler() {
           envelopeProgress[i] = 255;
           }    
       else {
-        envelopeVolume[i] = map(millis(), releaseStartTime[i], releaseStartTime[i] + releaseTime[i], 50, 0);
+        envelopeVolume[i] = map(millis(), releaseStartTime[i], releaseStartTime[i] + releaseTime[i], 768, 0);
         //Serial.println(envelopeVolume[i]);        
         }
         break;
@@ -375,7 +409,7 @@ void lcdHandler() {
 
 void playSound() {
   Timer3.attachInterrupt(audioHandler).setFrequency(44100).start(); // start the audio interrupt at 44.1kHz      
-  Timer4.attachInterrupt(sequencer).setPeriod(200000).start();     
+  Timer4.attachInterrupt(sequencer).setPeriod(400000).start();     
   }
 
 void stopSound() {
@@ -414,6 +448,8 @@ void setup() {
     
   createSineTable();
   createSquareTable(100);  
+  createSawTable();
+  createTriangleTable();
   //Serial.println(envelopeVolume[0]);  
 
   analogWrite(DAC0, 0);
