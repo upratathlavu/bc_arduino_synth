@@ -40,7 +40,7 @@ int val = 0;
 //                                {false, true, false, true, false, true, false, true},
 //                                {false, true, true, true, false, true, true, true},
 //                                {true, false, false, false, true, false, false, false}};
-/*bool sequences[VOICENUM][8] = { {true, false, false, false, true, false, true, false}, 
+/*bool sequences[VOICEUM][8] = { {false, false, false, false, false, false, false, false}, 
                                 {false, false, true, true, true, true, true, true},
                                 {false, false, false, false, true, true, false, false},
                                {false, false, false, false, false, false, true, true}};*/
@@ -484,6 +484,4 @@ void loop() {
       seqLedState[i] = HIGH;      
     }
   }
-
-  //Serial.println(globalOut);
 }
