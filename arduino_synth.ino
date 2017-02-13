@@ -193,8 +193,8 @@ void audioHandler() {
     if(ulPhaseAccumulator[i] > SAMPLES_PER_CYCLE_FIXEDPOINT)
     {
       // DB 02/Jan/2012 - carry the remainder of the phase accumulator
-      //ulPhaseAccumulator[i] -= SAMPLES_PER_CYCLE_FIXEDPOINT; 
-      ulPhaseAccumulator[i] = 0;
+      ulPhaseAccumulator[i] -= SAMPLES_PER_CYCLE_FIXEDPOINT; 
+      //ulPhaseAccumulator[i] = 0;
     }
     
     // get the current sample  
@@ -211,7 +211,7 @@ void audioHandler() {
     //ulOutput[i] = *(&nSineTable[0] + (ulPhaseAccumulator[i]>>20)) * envelopeVolume[i] >> 10;
     ulOutput[i] = *(soundType[i] + (ulPhaseAccumulator[i]>>20)) * envelopeVolume[i] >> 10;
     //ulOutput[i] = *(&nSineTable[0] + (ulPhaseAccumulator[i]>>20));
-    globalOut = ulOutput[i];
+    //globalOut = ulOutput[i];  // for debugging (Serial.println())
   }
 
   //ulOutput = ulOutput + filter((nSineTable[ulPhaseAccumulator[0]>>20] * envelopeVolume[0]), q[0], f[0]);
