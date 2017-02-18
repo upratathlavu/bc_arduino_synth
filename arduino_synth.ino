@@ -21,8 +21,18 @@ int32_t globalOut;
 int attackTime[VOICENUM] = {2, 5, 5, 5};        // value < 1 causes clicks (only at high frequency sounds?)
 int decayTime[VOICENUM] = {3, 10, 10, 10};
 int sustainTime[VOICENUM] = {10, 10, 10, 10};
-int sustainLevel = 400;
+int sustainLevel[VOICENUM] = {768, 768, 768, 768};
 int releaseTime[VOICENUM] = {50, 10, 20, 20};
+int voiceFrequency[VOICENUM] = {114, 8, 114, 15};
+// the phase accumulator points to the current sample in our wavetable
+uint32_t ulPhaseAccumulator[VOICENUM] = {0, 0, 0, 0};
+// the phase increment controls the rate at which we move through the wave table
+// higher values = higher frequencies
+//volatile uint32_t ulPhaseIncrement[VOICENUM] = {60000, 30000, 10000, 20000};   // 32 bit phase increment, see below
+//volatile uint32_t ulPhaseIncrement[VOICENUM] = {120000000, 8000000, 12000000, 15000000};   // 32 bit phase increment, see below
+#define INCREMENT_ONE_FIXEDPOINT 1048576
+volatile uint32_t ulPhaseIncrement[VOICENUM] = {voiceFrequency[0] * INCREMENT_ONE_FIXEDPOINT, voiceFrequency[1] * INCREMENT_ONE_FIXEDPOINT, voiceFrequency[2] * INCREMENT_ONE_FIXEDPOINT, voiceFrequency[3] * INCREMENT_ONE_FIXEDPOINT};   // 32 bit phase increment, see below
+int * voiceParam[6] = {&attackTime[0], &decayTime[0], &sustainTime[0], &sustainLevel[0], &releaseTime[0], &voiceFrequency[0]};
 int32_t envelopeVolume[VOICENUM] = {0, 0, 0, 0}; // the current volume according to the envelope on a scale from 0 to 1023 (10 bits) - needs to be unsigned so we can multiply with it for modulation
 unsigned long attackStartTime[VOICENUM] = {0, 0, 0, 0};
 unsigned long decayStartTime[VOICENUM] = {0, 0, 0, 0};
@@ -30,6 +40,7 @@ unsigned long sustainStartTime[VOICENUM] = {0, 0, 0, 0};
 unsigned long releaseStartTime[VOICENUM] = {0, 0, 0, 0};
 unsigned char envelopeProgress[VOICENUM] = {0, 0, 0, 0}; // 255 = the envelope is idle
 int voiceN = 0;
+int voiceParameterN = 0;
 int ctrl = 0;
 int val = 0;
 //bool sequences[VOICENUM][8] = {{true, false, false, false, true, false, false, false}, 
@@ -55,17 +66,10 @@ int val = 0;
 bool sequences[VOICENUM][8] = {{false, false, false, false, false, false, false, false},
                                {false, false, false, false, false, false, false, false},
                                {false, false, false, false, false, false, false, false},
-                               {false, false, false, false, false, false, false, false}};                               
-// the phase accumulator points to the current sample in our wavetable
-uint32_t ulPhaseAccumulator[VOICENUM] = {0, 0, 0, 0};
-// the phase increment controls the rate at which we move through the wave table
-// higher values = higher frequencies
-//volatile uint32_t ulPhaseIncrement[VOICENUM] = {60000, 30000, 10000, 20000};   // 32 bit phase increment, see below
-volatile uint32_t ulPhaseIncrement[VOICENUM] = {120000000, 8000000, 12000000, 15000000};   // 32 bit phase increment, see below
-
+                               {false, false, false, false, false, false, false, false}};                              
 #define DEBOUNCE 10  // button debouncer, how many ms to debounce, 5+ ms is usually plenty
 // here is where we define the buttons that we'll use. button "1" is the first, button "6" is the 6th, etc
-byte buttons[] = {22, 23, 24, 25, 26, 27, 28, 29, 50, 51, 52, 53}; // the analog 0-5 pins are also known as 14-19
+byte buttons[] = {22, 23, 24, 25, 26, 27, 28, 29, 48, 49, 50, 51, 52, 53}; // the analog 0-5 pins are also known as 14-19
 // This handy macro lets us determine how big the array up above is, by checking the size
 #define NUMBUTTONS sizeof(buttons)
 // we will track if a button is just pressed, just released, or 'currently pressed' 
@@ -190,7 +194,8 @@ void audioHandler() {
   int i;
   uint32_t ulOutput[VOICENUM];  
   for (i = 0; i < VOICENUM; i++) {
-    ulPhaseAccumulator[i] += ulPhaseIncrement[i];   // 32 bit phase increment, see below
+    //ulPhaseAccumulator[i] += ulPhaseIncrement[i];   // 32 bit phase increment, see below
+    ulPhaseAccumulator[i] += voiceFrequency[0] * INCREMENT_ONE_FIXEDPOINT;   // 32 bit phase increment, see below
     // if the phase accumulator over flows - we have been through one cycle at the current pitch,
     // now we need to reset the grains ready for our next cycle
 
@@ -268,7 +273,7 @@ void envelopeHandler() {
     switch (envelopeProgress[i]) {
       //Serial.print(", envelopeVolume[3]: ");
       //Serial.println(envelopeVolume[0]);      
-      case 0:
+      case 0: // ATTACK
         //Serial.println("case 0");
         //attackStartTime = millis();
         //Serial.println(millis());
@@ -288,7 +293,7 @@ void envelopeHandler() {
           }
         break;
         
-      case 1:
+      case 1: // DECAY
         //Serial.println("case 1");
         if ((millis() - decayStartTime[i]) > decayTime[i]) {
           sustainStartTime[i] = millis();          
@@ -300,19 +305,19 @@ void envelopeHandler() {
           }        
         break;
 
-      case 2:
+      case 2: // SUSTAIN
         //Serial.println("case 2");
         if ((millis() - sustainStartTime[i]) > sustainTime[i]) {
           releaseStartTime[i] = millis();          
           envelopeProgress[i] = 3;
           }    
         else {
-          envelopeVolume[i] = 768;
+          envelopeVolume[i] = sustainLevel[i];
           //Serial.println(envelopeVolume);        
         }
         break;
 
-      case 3:
+      case 3: // RELEASE
         //Serial.println("case 3");
         if ((millis() - releaseStartTime[i]) > releaseTime[i]) {
           envelopeProgress[i] = 255;
@@ -323,7 +328,7 @@ void envelopeHandler() {
         }
         break;
 
-      case 255:
+      case 255: // MUTE
         envelopeVolume[i] = 0;
         //Serial.println("case 255");
         break;       
@@ -427,7 +432,7 @@ void lcdHandler() {
   }
 
 void playSound() {
-  Timer3.attachInterrupt(audioHandler).setFrequency(44100).start(); // start the audio interrupt at 44.1kHz      
+  Timer3.attachInterrupt(audioHandler).setFrequency(SAMPLE_RATE).start(); // start the audio interrupt at 44.1kHz      
   Timer4.attachInterrupt(sequencer).setPeriod(400000).start();     
   }
 
@@ -446,6 +451,18 @@ void downVoice() {
   --voiceN;  
   if (voiceN < 0)
     voiceN = (VOICENUM - 1);
+  }
+
+void upVoiceParameter() {
+  ++voiceParameterN;  
+  if (voiceParameterN > (6 - 1))
+    voiceParameterN = 0;
+  }
+
+void downVoiceParameter() {
+  --voiceParameterN;  
+  if (voiceParameterN < 0)
+    voiceParameterN = (6 - 1);
   }
   
 void setup() {
@@ -508,6 +525,8 @@ void loop() {
   buttonsHandler();
   ledsHandler();
 
+  voiceParam[voiceParameterN][voiceN] = analogRead(0);
+
   // temp sequencer buttons
   for (int i = 0; i < (NUMBUTTONS - 2); i++) {   
     if (pressed[i] && sequences[voiceN][i]) {         // justpressed works equally bad here
@@ -520,16 +539,22 @@ void loop() {
     }
   }
 
-  // temp up down
+  // temp up down voice parameter
   if (justpressed[8]) // or justpressed? both work
-    upVoice();  
+    upVoiceParameter();  
   if (justpressed[9]) // or justpressed? both work
+    downVoiceParameter();
+
+  // temp up down voice
+  if (justpressed[10]) // or justpressed? both work
+    upVoice();  
+  if (justpressed[11]) // or justpressed? both work
     downVoice();
 
   // temp play stop 
-  if (pressed[10]) // or justpressed? both work
+  if (pressed[12]) // or justpressed? both work
     stopSound();
-  if (pressed[11]) // or justpressed? both work
+  if (pressed[13]) // or justpressed? both work
     playSound();
 
   clearJust();
@@ -539,5 +564,6 @@ void loop() {
   //Serial.println("---");
   //Serial.println(cnt);
   //Serial.println("end");
-  //Serial.println(voiceN);    
+  //Serial.println(voiceParameterN);    
+  //Serial.println(voiceParam[voiceParameterN][voiceN]);      
 }
