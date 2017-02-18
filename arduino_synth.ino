@@ -32,26 +32,31 @@ unsigned char envelopeProgress[VOICENUM] = {0, 0, 0, 0}; // 255 = the envelope i
 int voiceN = 0;
 int ctrl = 0;
 int val = 0;
-//bool sequences[VOICENUM][8] = { {true, false, false, false, true, false, false, false}, 
-//                                {false, false, true, false, false, false, false, false},
-//                                {true, false, true, true, false, true, false, false},
-//                                {false, true, false, false, true, false, true, false}};
-//bool sequences[VOICENUM][8] = { {true, true, true, true, true, true, true, true}, 
-//                                {false, true, false, true, false, true, false, true},
-//                                {false, true, true, true, false, true, true, true},
-//                                {true, false, false, false, true, false, false, false}};
-/*bool sequences[VOICEUM][8] = { {false, false, false, false, false, false, false, false}, 
-                                {false, false, true, true, true, true, true, true},
-                                {false, false, false, false, true, true, false, false},
+
+//bool sequences[VOICENUM][8] = {{true, false, false, false, true, false, false, false}, 
+//                               {false, false, true, false, false, false, false, false},
+//                               {true, false, true, true, false, true, false, false},
+//                               {false, true, false, false, true, false, true, false}};
+//bool sequences[VOICENUM][8] = {{true, true, true, true, true, true, true, true}, 
+//                               {false, true, false, true, false, true, false, true},
+//                               {false, true, true, true, false, true, true, true},
+//                               {true, false, false, false, true, false, false, false}};
+/*bool sequences[VOICENUM][8] = {{true, false, false, false, true, false, true, false}, 
+                               {false, false, true, true, true, true, true, true},
+                               {false, false, false, false, true, true, false, false},
                                {false, false, false, false, false, false, true, true}};*/
-/*bool sequences[VOICENUM][8] = { {true, true, true, true, true, true, true, true},
-                                {false, false, false, false, false, false, false, true},
-                                {false, false, false, false, false, false, false, true},
+/*bool sequences[VOICENUM][8] = {{true, true, true, true, true, true, true, true},
+                               {false, false, false, false, false, false, false, true},
+                               {false, false, false, false, false, false, false, true},
                                {false, false, false, false, false, false, false, true}};*/
-bool sequences[VOICENUM][8] = { {true, true, false, false, false, false, false, false},
-                                {false, false, true, true, false, false, false, false},
-                                {false, false, false, false, true, true, false, false},
-                               {false, false, false, false, false, false, true, true}};                               
+/*bool sequences[VOICENUM][8] = {{true, true, false, false, false, false, false, false},
+                               {false, false, true, true, false, false, false, false},
+                               {false, false, false, false, true, true, false, false},
+                               {false, false, false, false, false, false, true, true}};*/                               
+bool sequences[VOICENUM][8] = {{false, false, false, false, false, false, false, false},
+                               {false, false, false, false, false, false, false, false},
+                               {false, false, false, false, false, false, false, false},
+                               {false, false, false, false, false, false, false, false}};                               
 // the phase accumulator points to the current sample in our wavetable
 uint32_t ulPhaseAccumulator[VOICENUM] = {0, 0, 0, 0};
 // the phase increment controls the rate at which we move through the wave table
@@ -61,7 +66,7 @@ volatile uint32_t ulPhaseIncrement[VOICENUM] = {120000000, 8000000, 12000000, 15
 
 #define DEBOUNCE 10  // button debouncer, how many ms to debounce, 5+ ms is usually plenty
 // here is where we define the buttons that we'll use. button "1" is the first, button "6" is the 6th, etc
-byte buttons[] = {22, 23, 24, 25, 26, 27, 28, 29, 52, 53}; // the analog 0-5 pins are also known as 14-19
+byte buttons[] = {22, 23, 24, 25, 26, 27, 28, 29, 50, 51, 52, 53}; // the analog 0-5 pins are also known as 14-19
 // This handy macro lets us determine how big the array up above is, by checking the size
 #define NUMBUTTONS sizeof(buttons)
 // we will track if a button is just pressed, just released, or 'currently pressed' 
@@ -234,7 +239,6 @@ void audioHandler() {
   
   sampleOsc = sampleOsc / 4;
 
-  
   //globalOut = sampleOsc;
 
   float mainVolume = 1;                  // 0.00625 = 1/160; 0.0125 = 1/80; 0.025 = 1/40; 0.05 = 1/20; 0.1 = 1/10; 0.2 = 1/5; 0.5 = 1/2
@@ -355,6 +359,15 @@ void sequencer() {
     st++;
   }
 
+void clearJust()
+{
+  for (byte index = 0; index < NUMBUTTONS; index++) // when we start, we clear out the "just" indicators
+  {
+    justreleased[index] = 0;
+    justpressed[index] = 0;
+  }
+}
+
 void buttonsHandler() {
   static byte previousstate[NUMBUTTONS];
   static byte currentstate[NUMBUTTONS];  
@@ -379,19 +392,21 @@ void buttonsHandler() {
     currentstate[index] = digitalRead(buttons[index]);   // read the button
     
     if (currentstate[index] == previousstate[index]) {
-      if ((pressed[index] == LOW) && (currentstate[index] == LOW)) {
+      if ((pressed[index] == LOW) && (currentstate[index] == LOW)) {        // if not being pressed before and actually being pressed
           // just pressed
-          justpressed[index] = 1;
+          justpressed[index] = 1;          
       }
-      else if ((pressed[index] == HIGH) && (currentstate[index] == HIGH)) {
+      else if ((pressed[index] == HIGH) && (currentstate[index] == HIGH)) { // if being pressed before and and acutally being released
           // just released
           justreleased[index] = 1;
-      }
+      }          
       pressed[index] = !currentstate[index];  // remember, digital HIGH means NOT pressed
     }
-
     previousstate[index] = currentstate[index];   // keep a running tally of the buttons
   }
+  //Serial.println("---");  
+  //Serial.println(justpressed[0]);    
+  //Serial.println("---");  
 }
 
 void ledsHandler() {
@@ -416,10 +431,22 @@ void stopSound() {
   Timer3.stop();
   Timer4.stop();
   }
+
+void upVoice() {
+  ++voiceN;  
+  if (voiceN > (VOICENUM - 1))
+    voiceN = 0;
+  }
+
+void downVoice() {
+  --voiceN;  
+  if (voiceN < 0)
+    voiceN = (VOICENUM - 1);
+  }
   
 void setup() {
   Serial.begin(9600);  
-  Serial.println(SAMPLES_PER_CYCLE_FIXEDPOINT);      
+  //Serial.println(SAMPLES_PER_CYCLE_FIXEDPOINT);      
   
   lcd.begin(16, 2);
   lcd.print("ArduinoSynth");  
@@ -437,7 +464,11 @@ void setup() {
   for (byte i = 0; i < NUMBUTTONS; i ++)
     pinMode(buttons[i], INPUT_PULLUP);
 
-  // temp play stop buttons
+  // up down buttons for voice change
+  pinMode(50, INPUT_PULLUP);
+  pinMode(51, INPUT_PULLUP);
+
+  // play stop buttons
   pinMode(52, INPUT_PULLUP);
   pinMode(53, INPUT_PULLUP);
 
@@ -456,8 +487,10 @@ void setup() {
   analogWrite(DAC1, 0);
 
   playSound();
-  Serial.println(SAMPLES_PER_CYCLE_FIXEDPOINT);    
+  //Serial.println(SAMPLES_PER_CYCLE_FIXEDPOINT);    
 }
+
+int cnt = 0;
 
 void loop() {
   // put your main code here, to run repeatedly:
@@ -466,14 +499,11 @@ void loop() {
   //Serial.print("prog: ");
   //Serial.println(envelopeProgress[3]);    
   envelopeHandler();
+  //Serial.println("start");
   buttonsHandler();
   ledsHandler();
 
-  if (pressed[8]) // or justpressed? both works
-    stopSound();
-  if (pressed[9]) // or justpressed? both works
-    playSound();
-
+  // temp sequencer buttons
   for (int i = 0; i < (NUMBUTTONS - 2); i++) {   
     if (pressed[i] && sequences[voiceN][i]) {         // justpressed works equally bad here
       sequences[voiceN][i] = false;
@@ -484,4 +514,25 @@ void loop() {
       seqLedState[i] = HIGH;      
     }
   }
+
+  // temp up down
+  if (justpressed[8]) // or justpressed? both work
+    upVoice();  
+  if (justpressed[9]) // or justpressed? both work
+    downVoice();
+
+  // temp play stop 
+  if (pressed[10]) // or justpressed? both work
+    stopSound();
+  if (pressed[11]) // or justpressed? both work
+    playSound();
+
+  clearJust();
+  
+  //Serial.println("---");  
+  //Serial.println(justpressed[0]);  
+  //Serial.println("---");
+  //Serial.println(cnt);
+  //Serial.println("end");
+  //Serial.println(voiceN);    
 }
