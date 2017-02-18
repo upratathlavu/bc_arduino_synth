@@ -32,7 +32,6 @@ unsigned char envelopeProgress[VOICENUM] = {0, 0, 0, 0}; // 255 = the envelope i
 int voiceN = 0;
 int ctrl = 0;
 int val = 0;
-
 //bool sequences[VOICENUM][8] = {{true, false, false, false, true, false, false, false}, 
 //                               {false, false, true, false, false, false, false, false},
 //                               {true, false, true, true, false, true, false, false},
@@ -239,6 +238,7 @@ void audioHandler() {
   
   sampleOsc = sampleOsc / 4;
 
+  
   //globalOut = sampleOsc;
 
   float mainVolume = 1;                  // 0.00625 = 1/160; 0.0125 = 1/80; 0.025 = 1/40; 0.05 = 1/20; 0.1 = 1/10; 0.2 = 1/5; 0.5 = 1/2
@@ -410,9 +410,13 @@ void buttonsHandler() {
 }
 
 void ledsHandler() {
+  //Serial.println(voiceN);
   for (int i = 0; i < N; i++) {
-    digitalWrite(i + 30, seqLedState[i]);
+    //digitalWrite(i + 30, seqLedState[i]);
+    //Serial.print(sequences[voiceN][i]);
+    digitalWrite(i + 30, sequences[voiceN][i]);
     }
+    //Serial.println();    
   }
 
 void lcdHandler() {
@@ -471,6 +475,7 @@ void setup() {
   // play stop buttons
   pinMode(52, INPUT_PULLUP);
   pinMode(53, INPUT_PULLUP);
+
 
   // LEDs
   for (int i = 0; i < N; i++) {
