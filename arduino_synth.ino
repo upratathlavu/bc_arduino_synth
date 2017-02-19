@@ -478,7 +478,7 @@ void setup() {
    bool resistorsOnSegments = true; // Use 'true' if on digit pins
    byte hardwareConfig = COMMON_CATHODE; // See README.md for options
    sevseg.begin(hardwareConfig, numDigits, digitPins, segmentPins, resistorsOnSegments);
-   sevseg.setBrightness(10);
+   sevseg.setBrightness(90);
   
   lcd.begin(16, 2);
   lcd.print("ArduinoSynth");  
@@ -525,23 +525,25 @@ void setup() {
 
 int cnt = 0;
 
-void loop() {
+void loop() { 
   // put your main code here, to run repeatedly:
   //Serial.print("vol: ");
   //Serial.println(envelopeVolume[0]);
   //Serial.print("prog: ");
-  //Serial.println(envelopeProgress[3]);    
-  envelopeHandler();
+  //Serial.println(envelopeProgress[3]);        
+  envelopeHandler();  
   //Serial.println("start");
-  buttonsHandler();
-  ledsHandler();
-  sevseg.setNumber(voiceN, 0);
+  buttonsHandler();    
+  ledsHandler();    
+  sevseg.setNumber(voiceN, 0);  
   sevseg.refreshDisplay();
-  
+   
   voiceParam[voiceParameterN][voiceN] = analogRead(0);
 
   // temp sequencer buttons
-  for (int i = 0; i < (NUMBUTTONS - 2); i++) {   
+  for (int i = 0; i < 8; i++) {   
+    //Serial.print(i);  
+    //Serial.println(sevseg.getResOnSegments());       
     if (pressed[i] && sequences[voiceN][i]) {         // justpressed works equally bad here
       sequences[voiceN][i] = false;
       seqLedState[i] = LOW;
@@ -579,5 +581,11 @@ void loop() {
   //Serial.println("end");
   //Serial.println(voiceParameterN);    
   //Serial.println(voiceParam[voiceParameterN][voiceN]);      
-  Serial.println(voiceN);      
+  //Serial.println(voiceN);      
+  //for (int i = 0; i < 8; i++) {
+  //    Serial.print(digitalRead(38 + i));
+  //    }
+  //Serial.println(voiceN);
+  //Serial.print("b: ");
+  //Serial.println(sevseg.getResOnSegments());
 }
