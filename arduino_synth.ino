@@ -1,5 +1,6 @@
 #include <DueTimer.h>
 #include <LiquidCrystal.h>
+#include "SevSeg.h"
 
 #define SAMPLE_RATE 44100.0
 #define SAMPLES_PER_CYCLE 2048
@@ -83,6 +84,8 @@ int seqLedState[N] = {LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW};
 //bool sendOff[N] = {false, false, false, false, false, false, false, false};
 
 LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
+
+SevSeg sevseg;
 
 uint16_t nSineTable[WAVE_SAMPLES];
 uint16_t nSquareTable[WAVE_SAMPLES];
@@ -468,6 +471,14 @@ void downVoiceParameter() {
 void setup() {
   Serial.begin(9600);  
   //Serial.println(SAMPLES_PER_CYCLE_FIXEDPOINT);      
+
+   byte numDigits = 1;   
+   byte digitPins[] = {6, 7};
+   byte segmentPins[] = {38, 39, 40, 41, 42, 43, 44, 45};
+   bool resistorsOnSegments = true; // Use 'true' if on digit pins
+   byte hardwareConfig = COMMON_CATHODE; // See README.md for options
+   sevseg.begin(hardwareConfig, numDigits, digitPins, segmentPins, resistorsOnSegments);
+   sevseg.setBrightness(10);
   
   lcd.begin(16, 2);
   lcd.print("ArduinoSynth");  
@@ -524,7 +535,9 @@ void loop() {
   //Serial.println("start");
   buttonsHandler();
   ledsHandler();
-
+  sevseg.setNumber(voiceN, 0);
+  sevseg.refreshDisplay();
+  
   voiceParam[voiceParameterN][voiceN] = analogRead(0);
 
   // temp sequencer buttons
@@ -566,4 +579,5 @@ void loop() {
   //Serial.println("end");
   //Serial.println(voiceParameterN);    
   //Serial.println(voiceParam[voiceParameterN][voiceN]);      
+  Serial.println(voiceN);      
 }
