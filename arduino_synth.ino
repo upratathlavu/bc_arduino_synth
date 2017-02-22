@@ -1,6 +1,7 @@
 #include <DueTimer.h>
 #include <LiquidCrystal.h>
 #include "SevSeg.h"
+#include <ResponsiveAnalogRead.h>
 
 #define SAMPLE_RATE 44100.0
 #define SAMPLES_PER_CYCLE 2048
@@ -13,6 +14,8 @@
 
 #define VOICENUM 4
 int32_t globalOut;
+
+ResponsiveAnalogRead analog(0, true);
 
 //int attackTime[VOICENUM] = {50, 30, 60, 80};
 //int decayTime[VOICENUM] = {50, 30, 60, 70};
@@ -427,11 +430,85 @@ void ledsHandler() {
     //Serial.println();    
   }
 
+void showValue(int val) {
+  if (val < 10)
+  {
+    lcd.print("   ");
+    lcd.print(val);
+  }
+  else if (val < 100)
+  {
+    lcd.print("  ");
+    lcd.print(val);
+  }
+  else if (val < 1000)
+  {
+    lcd.print(" ");
+    lcd.print(val);
+  }
+  else
+    lcd.print(val);
+}
+
 void lcdHandler() {
-  lcd.print("ctrl: ");
-  lcd.print(ctrl);  
-  lcd.print("val: ");  
-  lcd.print(val);  
+  lcd.clear();  
+  
+  switch (voiceParameterN) {
+    case 0:
+      lcd.print("AttTime: ");      
+      break;      
+    case 1:
+      lcd.print("DecTime: ");
+      break;      
+    case 2:      
+      lcd.print("SustTime: ");    
+      break;      
+    case 3:      
+      lcd.print("SustLevel: ");        
+      break;      
+    case 4:      
+      lcd.print("RelTime: ");
+      break;      
+    case 5:      
+      lcd.print("VoiceFreq: ");    
+      break;
+    }
+    
+    //lcd.print(*voiceParam[voiceParameterN]);  
+    showValue(*voiceParam[voiceParameterN]);
+  }
+
+bool locked = false;
+unsigned long lastUnlocked = 0;
+void potsHandler() {
+  //analog.update();    
+  static int last = 0;
+  int act = analogRead(0); 
+  //Serial.print("last: ");  
+  //Serial.println(last);
+  //Serial.print("act: ");  
+  //Serial.println(act);  
+  //if (act > (last + 20) || act < (last - 20)) {
+  //  voiceParam[voiceParameterN][voiceN] = act;
+  //  last = act;
+  //if (analog.hasChanged()) {
+  //  voiceParam[voiceParameterN][voiceN] = analog.getValue();
+  //  lcdHandler();
+  //  }
+  if (locked) {
+    if (abs(act - last) > 10) {
+      locked = false;
+      lastUnlocked = millis();
+      }
+  }
+  else {
+    if (millis() - lastUnlocked > 500) {
+      locked = true;
+      last = act;
+      voiceParam[voiceParameterN][voiceN] = last;
+      lcdHandler();
+      }
+    }
   }
 
 void playSound() {
@@ -479,16 +556,17 @@ void setup() {
    byte hardwareConfig = COMMON_CATHODE; // See README.md for options
    sevseg.begin(hardwareConfig, numDigits, digitPins, segmentPins, resistorsOnSegments);
    sevseg.setBrightness(90);
-  
-  lcd.begin(16, 2);
-  lcd.print("ArduinoSynth");  
-  lcd.setCursor(0, 1);
-  lcd.print("v 0.1");
-  lcd.setCursor(14, 1);
-  for (int i = 0; i < 5; i++) {
+
+  for (int i = 0; i < 5; i++) {  
+    lcd.begin(16, 2);
+    lcd.print("ArduinoSynth");  
+    lcd.setCursor(0, 1);
+    lcd.print("v 0.1");
+    lcd.setCursor(14, 1);
     lcd.print(5 - i);
     lcd.print("s");
-    //delay(1000);
+    delay(1000);
+    lcd.clear();
   }
 
   // buttons
@@ -534,12 +612,11 @@ void loop() {
   envelopeHandler();  
   //Serial.println("start");
   buttonsHandler();    
-  ledsHandler();    
+  ledsHandler();   
+  potsHandler();
   sevseg.setNumber(voiceN, 0);  
   sevseg.refreshDisplay();
    
-  voiceParam[voiceParameterN][voiceN] = analogRead(0);
-
   // temp sequencer buttons
   for (int i = 0; i < 8; i++) {   
     //Serial.print(i);  
@@ -555,10 +632,14 @@ void loop() {
   }
 
   // temp up down voice parameter
-  if (justpressed[8]) // or justpressed? both work
-    upVoiceParameter();  
-  if (justpressed[9]) // or justpressed? both work
+  if (justpressed[8]) {// or justpressed? both work
+    upVoiceParameter();
+    lcdHandler();
+  }  
+  if (justpressed[9]) {// or justpressed? both work
     downVoiceParameter();
+    lcdHandler();
+  }
 
   // temp up down voice
   if (justpressed[10]) // or justpressed? both work
