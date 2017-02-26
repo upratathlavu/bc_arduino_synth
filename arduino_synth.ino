@@ -204,7 +204,7 @@ void audioHandler() {
   uint32_t ulOutput[VOICENUM];  
   for (i = 0; i < VOICENUM; i++) {
     //ulPhaseAccumulator[i] += ulPhaseIncrement[i];   // 32 bit phase increment, see below
-    ulPhaseAccumulator[i] += voiceFrequency[0] * INCREMENT_ONE_FIXEDPOINT;   // 32 bit phase increment, see below
+    ulPhaseAccumulator[i] += voiceFrequency[i] * INCREMENT_ONE_FIXEDPOINT;   // 32 bit phase increment, see below
     // if the phase accumulator over flows - we have been through one cycle at the current pitch,
     // now we need to reset the grains ready for our next cycle
 
@@ -309,7 +309,7 @@ void envelopeHandler() {
           envelopeProgress[i] = 2;
           }    
         else {
-          envelopeVolume[i] = map(millis(), decayStartTime[i], decayStartTime[i] + decayTime[i], 1023, 768);
+          envelopeVolume[i] = map(millis(), decayStartTime[i], decayStartTime[i] + decayTime[i], 1023, voiceParam[1][voiceN]);
           //Serial.println(envelopeVolume);        
           }        
         break;
@@ -332,7 +332,7 @@ void envelopeHandler() {
           envelopeProgress[i] = 255;
           }    
       else {
-        envelopeVolume[i] = map(millis(), releaseStartTime[i], releaseStartTime[i] + releaseTime[i], 768, 0);
+        envelopeVolume[i] = map(millis(), releaseStartTime[i], releaseStartTime[i] + releaseTime[i], voiceParam[1][voiceN], 0);
         //Serial.println(envelopeVolume[i]);        
         }
         break;
@@ -478,7 +478,7 @@ void lcdHandler() {
     }
     
     //lcd.print(*voiceParam[voiceParameterN]);  
-    showValue(*voiceParam[voiceParameterN]);
+    showValue(voiceParam[voiceParameterN][voiceN]);
   }
 
 bool locked = false;
@@ -508,7 +508,10 @@ void potsHandler() {
     if (millis() - lastUnlocked > 500) {
       locked = true;
       last = act;
-      voiceParam[voiceParameterN][voiceN] = last;
+      if (voiceParameterN == 3) // sustainLevel
+          voiceParam[voiceParameterN][voiceN] = act;
+      else
+          voiceParam[voiceParameterN][voiceN] = map(act, 0, 1023, 1, 100);
       lcdHandler();
       }
     }
@@ -554,78 +557,21 @@ void storeSettings() {
   int addr;
   for (int i = 0; i < 6; i++) {
     memcpy(&(b[i*4]), voiceParam[i], 4 * sizeof(int));
-    //store.write(4 + i*16, b, sizeof(int) * 4);
-    //store.write(4 + i*16, (byte *) voiceParam[i], sizeof(int) * 4);
-/*    for (int j = 0; j < 4; j++) {
-      addr = 4 + i*16 + j*4;
-      Serial.print("addr: ");
-      Serial.println(4 + i*16 + j*4);
-      Serial.println("before");      
-      for (int k = 0; k < 4; k++) {
-        Serial.print(*(store.readAddress(4 + i * 16 + j * 4 + k)), BIN);      
-        Serial.print(" ");
-      }
-      Serial.println();
-      Serial.print("voiceParam: ");
-      Serial.println(voiceParam[i][j], BIN);
-      store.write(addr, (byte *) voiceParam[i][j], sizeof(int));
-      Serial.println("after");
-      for (int k = 0; k < 4; k++) {
-        Serial.print(*(store.readAddress(4 + i * 16 + j * 4 + k)), BIN);            
-        Serial.print(" ");        
-      }
-      Serial.println();        
-    }*/
   }
-  Serial.print("sizeof bool");
-  Serial.println(sizeof(bool));
   memcpy(b2, sequences, sizeof(bool) * 32);
   store.write(4, (byte *) b, sizeof(b) * sizeof(int));
   store.write(4 + 24 * sizeof(int), b2, sizeof(b2));
-/*  for (int i = 0; i < 24; i++) {
-    Serial.println(b[i]);
-    }
-  Serial.println();
-  for (int i = 0; i < 6; i++) {
-    for (int j = 0; j < 4; j++) {
-      Serial.println(voiceParam[i][j], BIN);
-      }
-    Serial.println();      
-    }
-
-  for (int i = 0; i < 6; i++) {
-    for (int j = 0; j < 4; j++) { 
-      for (int k = 0; k < 4; k++) {
-        Serial.print(*(store.readAddress(4 + i * 16 + j * 4 + k)), BIN);
-        Serial.print(" ");        
-        }
-      Serial.println();
-      }
-    }    */
   Serial.println("stored");
   }
 
 void loadSettings() {
-  //byte * addr;
   for (int i = 0; i < 6; i++) {
     for (int j = 0; j < 4; j++) {
-  //    addr = store.readAddress(4 + (i * 16) + (j * 4));      
-  //    memcpy(&(voiceParam[i][j]), addr, sizeof(int));
         memcpy(voiceParam[i], store.readAddress(4 + i*16), 4 * sizeof(int));
         //voiceParam[i][j] = store.read(4 + (i * 4) + j);
     }
   }
   memcpy(sequences, store.readAddress(4 + 24 * sizeof(int)), 32);
-/*  for (int i = 0; i < 6; i++) {
-    for (int j = 0; j < 4; j++) { 
-      for (int k = 0; k < 4; k++) {
-        Serial.print(*(store.readAddress(4 + i * 16 + j * 4 + k)), BIN);
-        Serial.print(" ");        
-        }
-      Serial.println();
-      }
-    }
-  Serial.println();*/
   for (int i = 0; i < 6; i++) {
     for (int j = 0; j < 4; j++) {
       Serial.println(voiceParam[i][j]);
