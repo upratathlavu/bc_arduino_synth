@@ -550,6 +550,7 @@ void downVoiceParameter() {
 
 void storeSettings() {
   int b[24];
+  byte b2[32];
   int addr;
   for (int i = 0; i < 6; i++) {
     memcpy(&(b[i*4]), voiceParam[i], 4 * sizeof(int));
@@ -576,7 +577,11 @@ void storeSettings() {
       Serial.println();        
     }*/
   }
+  Serial.print("sizeof bool");
+  Serial.println(sizeof(bool));
+  memcpy(b2, sequences, sizeof(bool) * 32);
   store.write(4, (byte *) b, sizeof(b) * sizeof(int));
+  store.write(4 + 24 * sizeof(int), b2, sizeof(b2));
 /*  for (int i = 0; i < 24; i++) {
     Serial.println(b[i]);
     }
@@ -610,6 +615,7 @@ void loadSettings() {
         //voiceParam[i][j] = store.read(4 + (i * 4) + j);
     }
   }
+  memcpy(sequences, store.readAddress(4 + 24 * sizeof(int)), 32);
 /*  for (int i = 0; i < 6; i++) {
     for (int j = 0; j < 4; j++) { 
       for (int k = 0; k < 4; k++) {
