@@ -1,25 +1,83 @@
 #include <DueTimer.h>
 #include <LiquidCrystal.h>
-#include "SevSeg.h"
+#include <SevSeg.h>
 #include <ResponsiveAnalogRead.h>
 #include <DueFlashStorage.h>
 
+//************* COMMON DEFINITIONS
+#define N 8 
+#define VOICENUM 4
+#define WAVE_SAMPLES 2048
 #define SAMPLE_RATE 44100.0
 #define SAMPLES_PER_CYCLE 2048
 #define SAMPLES_PER_CYCLE_FIXEDPOINT (SAMPLES_PER_CYCLE<<20)
 #define TICKS_PER_CYCLE (float)((float)SAMPLES_PER_CYCLE_FIXEDPOINT/(float)SAMPLE_RATE)
 
-#define WAVE_SAMPLES 2048
 
-#define N 8 
+//************* FILTER
+#define FX_SHIFT 8
+#define SHIFTED_1 256
+uint8_t q[VOICENUM] = {0.2, 0.2, 0.2, 0.5};
+uint8_t q_out = 0.2;
+uint8_t f[VOICENUM] = {50, 50, 50, 50};
+uint8_t f_out = 62;
 
-#define VOICENUM 4
+int buf0,buf1;
+// multiply two fixed point numbers (returns fixed point)
+inline
+unsigned int ucfxmul(uint8_t a, uint8_t b)
+{
+  return (((unsigned int)a*b)>>FX_SHIFT);
+}
+  
+// multiply two fixed point numbers (returns fixed point)
+inline
+int ifxmul(int a, uint8_t b)
+{
+  return ((a*b)>>FX_SHIFT);
+}
+  
+// multiply two fixed point numbers (returns fixed point)
+inline
+long fxmul(long a, int b)
+{
+  return ((a*b)>>FX_SHIFT);
+}
+
+unsigned int fb[VOICENUM] = {q[0] + fxmul(q[0], (int)SHIFTED_1 - (f[0] / 128)), q[1] + fxmul(q[1], (int)SHIFTED_1 - (f[1] / 128)), q[2] + fxmul(q[2], (int)SHIFTED_1 - (f[2] / 128)), q[3] + fxmul(q[3], (int)SHIFTED_1 - (f[3] / 128))};
+unsigned int fb_out = q_out + fxmul(q_out, (int)SHIFTED_1 - (f_out / 128));
+
+inline
+int filter(int in, uint8_t q, uint8_t f, unsigned int fb)
+{
+  buf0+=fxmul(((in - buf0) + fxmul(fb, buf0-buf1)), f);
+  buf1+=ifxmul(buf0-buf1, f); // could overflow if input changes fast
+  return buf1;
+}
+
+// nSineTable[] is used both in lfo() and audioHandler()
+// thats why are they defined here
+uint16_t nSineTable[WAVE_SAMPLES];
+uint16_t nSquareTable[WAVE_SAMPLES];
+uint16_t nSawTable[WAVE_SAMPLES];
+uint16_t nTriangleTable[WAVE_SAMPLES];
+
+//************* LFO
+uint32_t ulLfoPhaseAccumulator = 0;
+volatile uint32_t ulLfoPhaseIncrement = 1000000;
+uint16_t lfo(uint32_t in) {
+  ulLfoPhaseAccumulator += ulLfoPhaseIncrement;
+  if(ulLfoPhaseAccumulator > SAMPLES_PER_CYCLE_FIXEDPOINT) {
+      ulLfoPhaseAccumulator -= SAMPLES_PER_CYCLE_FIXEDPOINT;    
+    }
+
+  return nSineTable[ulLfoPhaseAccumulator >> 20] * in * 0.00001;
+  }  
+
+
+//************* SYNTH
+#define INCREMENT_ONE_FIXEDPOINT 1<<20 // 1048576
 int32_t globalOut;
-
-ResponsiveAnalogRead analog(0, true);
-
-DueFlashStorage store;
-
 int attackTime[VOICENUM] = {2, 5, 5, 5};        // value < 1 causes clicks (only at high frequency sounds?)
 int decayTime[VOICENUM] = {3, 10, 10, 10};
 int sustainTime[VOICENUM] = {10, 10, 10, 10};
@@ -30,7 +88,6 @@ int voiceFrequency[VOICENUM] = {114, 8, 114, 15};
 uint32_t ulPhaseAccumulator[VOICENUM] = {0, 0, 0, 0};
 // the phase increment controls the rate at which we move through the wave table
 // higher values = higher frequencies
-#define INCREMENT_ONE_FIXEDPOINT 1048576
 volatile uint32_t ulPhaseIncrement[VOICENUM] = {voiceFrequency[0] * INCREMENT_ONE_FIXEDPOINT, voiceFrequency[1] * INCREMENT_ONE_FIXEDPOINT, voiceFrequency[2] * INCREMENT_ONE_FIXEDPOINT, voiceFrequency[3] * INCREMENT_ONE_FIXEDPOINT};   // 32 bit phase increment, see below
 int * voiceParam[6] = {&attackTime[0], &decayTime[0], &sustainTime[0], &sustainLevel[0], &releaseTime[0], &voiceFrequency[0]};
 int32_t envelopeVolume[VOICENUM] = {0, 0, 0, 0}; // the current volume according to the envelope on a scale from 0 to 1023 (10 bits) - needs to be unsigned so we can multiply with it for modulation
@@ -41,31 +98,6 @@ unsigned long releaseStartTime[VOICENUM] = {0, 0, 0, 0};
 unsigned char envelopeProgress[VOICENUM] = {0, 0, 0, 0}; // 255 = the envelope is idle
 int voiceN = 0;
 int voiceParameterN = 0;
-int ctrl = 0;
-int val = 0;                             
-bool sequences[VOICENUM][8] = {{false, false, false, false, false, false, false, false},
-                               {false, false, false, false, false, false, false, false},
-                               {false, false, false, false, false, false, false, false},
-                               {false, false, false, false, false, false, false, false}};                              
-#define DEBOUNCE 10  // button debouncer, how many ms to debounce, 5+ ms is usually plenty
-// here is where we define the buttons that we'll use. button "1" is the first, button "6" is the 6th, etc
-byte buttons[] = {22, 23, 24, 25, 26, 27, 28, 29, 48, 49, 50, 51, 52, 53, 8}; 
-// This handy macro lets us determine how big the array up above is, by checking the size
-#define NUMBUTTONS sizeof(buttons)
-// we will track if a button is just pressed, just released, or 'currently pressed' 
-byte pressed[NUMBUTTONS], justpressed[NUMBUTTONS], justreleased[NUMBUTTONS];
-  
-int seqLedState[N] = {LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW}; 
-
-LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
-
-SevSeg sevseg;
-
-uint16_t nSineTable[WAVE_SAMPLES];
-uint16_t nSquareTable[WAVE_SAMPLES];
-uint16_t nSawTable[WAVE_SAMPLES];
-uint16_t nTriangleTable[WAVE_SAMPLES];
-
 uint16_t * soundType[VOICENUM] = {&nSineTable[0], &nSquareTable[0], &nSawTable[0], &nTriangleTable[0]};
 
 void createSineTable() {
@@ -112,60 +144,6 @@ void createTriangleTable()
       nTriangleTable[nIndex] = (4095 / (WAVE_SAMPLES / 2)) * (WAVE_SAMPLES - nIndex);
   }
 }
-
-#define FX_SHIFT 8
-#define SHIFTED_1 256
-
-uint8_t q[VOICENUM] = {0.2, 0.2, 0.2, 0.5};
-uint8_t q_out = 0.2;
-uint8_t f[VOICENUM] = {50, 50, 50, 50};
-uint8_t f_out = 62;
-unsigned int fb[VOICENUM] = {q[0] + fxmul(q[0], (int)SHIFTED_1 - (f[0] / 128)), q[1] + fxmul(q[1], (int)SHIFTED_1 - (f[1] / 128)), q[2] + fxmul(q[2], (int)SHIFTED_1 - (f[2] / 128)), q[3] + fxmul(q[3], (int)SHIFTED_1 - (f[3] / 128))};
-unsigned int fb_out = q_out + fxmul(q_out, (int)SHIFTED_1 - (f_out / 128));
-
-int buf0,buf1;
-
-// multiply two fixed point numbers (returns fixed point)
-inline
-unsigned int ucfxmul(uint8_t a, uint8_t b)
-{
-  return (((unsigned int)a*b)>>FX_SHIFT);
-}
-  
-// multiply two fixed point numbers (returns fixed point)
-inline
-int ifxmul(int a, uint8_t b)
-{
-  return ((a*b)>>FX_SHIFT);
-}
-  
-// multiply two fixed point numbers (returns fixed point)
-inline
-long fxmul(long a, int b)
-{
-  return ((a*b)>>FX_SHIFT);
-}
-
-inline
-int filter(int in, uint8_t q, uint8_t f, unsigned int fb)
-{
-  //setPin13High();
-  buf0+=fxmul(((in - buf0) + fxmul(fb, buf0-buf1)), f);
-  buf1+=ifxmul(buf0-buf1, f); // could overflow if input changes fast
-  //setPin13Low();
-  return buf1;
-}
-
-uint32_t ulLfoPhaseAccumulator = 0;
-volatile uint32_t ulLfoPhaseIncrement = 1000000;
-uint16_t lfo(uint32_t in) {
-  ulLfoPhaseAccumulator += ulLfoPhaseIncrement;
-  if(ulLfoPhaseAccumulator > SAMPLES_PER_CYCLE_FIXEDPOINT) {
-      ulLfoPhaseAccumulator -= SAMPLES_PER_CYCLE_FIXEDPOINT;    
-    }
-
-  return nSineTable[ulLfoPhaseAccumulator >> 20] * in * 0.00001;
-  }  
 
 void audioHandler() {
   int i;
@@ -264,6 +242,14 @@ void envelopeHandler() {
     }
   }
 
+
+//************* SEQ
+bool sequences[VOICENUM][8] = {{true, false, false, false, false, false, false, false},
+                               {false, false, true, false, false, false, false, false},
+                               {false, false, false, false, true, false, false, false},
+                               {false, false, false, false, false, false, true, false}};     
+
+
 void trigger(int i) {
   //Serial.println("trigger");  
   attackStartTime[i] = millis();
@@ -285,6 +271,15 @@ void sequencer() {
     st++;
   }
 
+
+//************* BUTTONS
+#define DEBOUNCE 10  // button debouncer, how many ms to debounce, 5+ ms is usually plenty
+// here is where we define the buttons that we'll use. button "1" is the first, button "6" is the 6th, etc
+byte buttons[] = {22, 23, 24, 25, 26, 27, 28, 29, 48, 49, 50, 51, 52, 53, 8}; 
+// This handy macro lets us determine how big the array up above is, by checking the size
+#define NUMBUTTONS sizeof(buttons)
+// we will track if a button is just pressed, just released, or 'currently pressed' 
+byte pressed[NUMBUTTONS], justpressed[NUMBUTTONS], justreleased[NUMBUTTONS];
 void clearJust()
 {
   for (byte index = 0; index < NUMBUTTONS; index++) // when we start, we clear out the "just" indicators
@@ -332,11 +327,19 @@ void buttonsHandler() {
   }
 }
 
+
+//************* LEDS
+int seqLedState[N] = {LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW}; 
+
 void ledsHandler() {
   for (int i = 0; i < N; i++) {
     digitalWrite(i + 30, sequences[voiceN][i]);
     }
   }
+
+
+//************* LCD
+LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
 
 void showValue(int val) {
   if (val < 10)
@@ -384,6 +387,9 @@ void lcdHandler() {
   showValue(voiceParam[voiceParameterN][voiceN]);
   }
 
+
+//************* POTS
+//ResponsiveAnalogRead analog(0, true);
 bool locked = false;
 unsigned long lastUnlocked = 0;
 void potsHandler() {
@@ -412,6 +418,10 @@ void potsHandler() {
       }
     }
   }
+
+
+//************* DEVICE CONTROL
+DueFlashStorage store;
 
 void playSound() {
   Timer3.attachInterrupt(audioHandler).setFrequency(SAMPLE_RATE).start(); // start the audio interrupt at 44.1kHz      
@@ -475,7 +485,12 @@ void loadSettings() {
     }
   Serial.println("loaded");
   }
-  
+
+
+//************* MAIN
+SevSeg sevseg;
+bool stored = false;
+
 void setup() {
   Serial.begin(9600);  
 
@@ -540,10 +555,6 @@ void setup() {
 
   playSound();
 }
-
-int cnt = 0;
-
-bool stored = false;
 
 void loop() { 
   // put your main code here, to run repeatedly:      
