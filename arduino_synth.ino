@@ -2,6 +2,7 @@
 #include <LiquidCrystal.h>
 #include "SevSeg.h"
 #include <ResponsiveAnalogRead.h>
+#include <DueFlashStorage.h>
 
 #define SAMPLE_RATE 44100.0
 #define SAMPLES_PER_CYCLE 2048
@@ -16,6 +17,8 @@
 int32_t globalOut;
 
 ResponsiveAnalogRead analog(0, true);
+
+DueFlashStorage store;
 
 //int attackTime[VOICENUM] = {50, 30, 60, 80};
 //int decayTime[VOICENUM] = {50, 30, 60, 70};
@@ -73,7 +76,7 @@ bool sequences[VOICENUM][8] = {{false, false, false, false, false, false, false,
                                {false, false, false, false, false, false, false, false}};                              
 #define DEBOUNCE 10  // button debouncer, how many ms to debounce, 5+ ms is usually plenty
 // here is where we define the buttons that we'll use. button "1" is the first, button "6" is the 6th, etc
-byte buttons[] = {22, 23, 24, 25, 26, 27, 28, 29, 48, 49, 50, 51, 52, 53}; // the analog 0-5 pins are also known as 14-19
+byte buttons[] = {22, 23, 24, 25, 26, 27, 28, 29, 48, 49, 50, 51, 52, 53, 8}; 
 // This handy macro lets us determine how big the array up above is, by checking the size
 #define NUMBUTTONS sizeof(buttons)
 // we will track if a button is just pressed, just released, or 'currently pressed' 
@@ -544,6 +547,87 @@ void downVoiceParameter() {
   if (voiceParameterN < 0)
     voiceParameterN = (6 - 1);
   }
+
+void storeSettings() {
+  int b[24];
+  int addr;
+  for (int i = 0; i < 6; i++) {
+    memcpy(&(b[i*4]), voiceParam[i], 4 * sizeof(int));
+    //store.write(4 + i*16, b, sizeof(int) * 4);
+    //store.write(4 + i*16, (byte *) voiceParam[i], sizeof(int) * 4);
+/*    for (int j = 0; j < 4; j++) {
+      addr = 4 + i*16 + j*4;
+      Serial.print("addr: ");
+      Serial.println(4 + i*16 + j*4);
+      Serial.println("before");      
+      for (int k = 0; k < 4; k++) {
+        Serial.print(*(store.readAddress(4 + i * 16 + j * 4 + k)), BIN);      
+        Serial.print(" ");
+      }
+      Serial.println();
+      Serial.print("voiceParam: ");
+      Serial.println(voiceParam[i][j], BIN);
+      store.write(addr, (byte *) voiceParam[i][j], sizeof(int));
+      Serial.println("after");
+      for (int k = 0; k < 4; k++) {
+        Serial.print(*(store.readAddress(4 + i * 16 + j * 4 + k)), BIN);            
+        Serial.print(" ");        
+      }
+      Serial.println();        
+    }*/
+  }
+  store.write(4, (byte *) b, sizeof(b) * sizeof(int));
+/*  for (int i = 0; i < 24; i++) {
+    Serial.println(b[i]);
+    }
+  Serial.println();
+  for (int i = 0; i < 6; i++) {
+    for (int j = 0; j < 4; j++) {
+      Serial.println(voiceParam[i][j], BIN);
+      }
+    Serial.println();      
+    }
+
+  for (int i = 0; i < 6; i++) {
+    for (int j = 0; j < 4; j++) { 
+      for (int k = 0; k < 4; k++) {
+        Serial.print(*(store.readAddress(4 + i * 16 + j * 4 + k)), BIN);
+        Serial.print(" ");        
+        }
+      Serial.println();
+      }
+    }    */
+  Serial.println("stored");
+  }
+
+void loadSettings() {
+  //byte * addr;
+  for (int i = 0; i < 6; i++) {
+    for (int j = 0; j < 4; j++) {
+  //    addr = store.readAddress(4 + (i * 16) + (j * 4));      
+  //    memcpy(&(voiceParam[i][j]), addr, sizeof(int));
+        memcpy(voiceParam[i], store.readAddress(4 + i*16), 4 * sizeof(int));
+        //voiceParam[i][j] = store.read(4 + (i * 4) + j);
+    }
+  }
+/*  for (int i = 0; i < 6; i++) {
+    for (int j = 0; j < 4; j++) { 
+      for (int k = 0; k < 4; k++) {
+        Serial.print(*(store.readAddress(4 + i * 16 + j * 4 + k)), BIN);
+        Serial.print(" ");        
+        }
+      Serial.println();
+      }
+    }
+  Serial.println();*/
+  for (int i = 0; i < 6; i++) {
+    for (int j = 0; j < 4; j++) {
+      Serial.println(voiceParam[i][j]);
+      }
+    Serial.println();      
+    }
+  Serial.println("loaded");
+  }
   
 void setup() {
   Serial.begin(9600);  
@@ -570,6 +654,9 @@ void setup() {
   }
 
   // buttons
+  // settings store button  
+  pinMode(8, INPUT_PULLUP);
+  
   // Make input & enable pull-up resistors on switch pins
   for (byte i = 0; i < NUMBUTTONS; i ++)
     pinMode(buttons[i], INPUT_PULLUP);
@@ -587,6 +674,15 @@ void setup() {
   for (int i = 0; i < N; i++) {
     pinMode(i + 30, OUTPUT);
   }  
+
+  uint8_t codeRunningForTheFirstTime = store.read(0);
+  if (codeRunningForTheFirstTime) {
+    Serial.println("yes");
+    storeSettings();
+    store.write(0, 0);     
+  }
+
+  loadSettings();
     
   createSineTable();
   createSquareTable(100);  
@@ -602,6 +698,8 @@ void setup() {
 }
 
 int cnt = 0;
+
+bool stored = false;
 
 void loop() { 
   // put your main code here, to run repeatedly:
@@ -631,6 +729,18 @@ void loop() {
     }
   }
 
+  // temp settings store
+  if (justpressed[14]) {// or justpressed? both work
+    if (stored == true) {
+      loadSettings();
+      stored = false;
+    }
+    else {
+      storeSettings();
+      stored = true;
+    }
+  }  
+  
   // temp up down voice parameter
   if (justpressed[8]) {// or justpressed? both work
     upVoiceParameter();
