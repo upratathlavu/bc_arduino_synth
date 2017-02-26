@@ -20,11 +20,6 @@ ResponsiveAnalogRead analog(0, true);
 
 DueFlashStorage store;
 
-//int attackTime[VOICENUM] = {50, 30, 60, 80};
-//int decayTime[VOICENUM] = {50, 30, 60, 70};
-//int sustainTime[VOICENUM] = {200, 300, 300, 150};
-//int sustainLevel = 400;
-//int releaseTime[VOICENUM] = {50, 30, 40, 50};
 int attackTime[VOICENUM] = {2, 5, 5, 5};        // value < 1 causes clicks (only at high frequency sounds?)
 int decayTime[VOICENUM] = {3, 10, 10, 10};
 int sustainTime[VOICENUM] = {10, 10, 10, 10};
@@ -35,8 +30,6 @@ int voiceFrequency[VOICENUM] = {114, 8, 114, 15};
 uint32_t ulPhaseAccumulator[VOICENUM] = {0, 0, 0, 0};
 // the phase increment controls the rate at which we move through the wave table
 // higher values = higher frequencies
-//volatile uint32_t ulPhaseIncrement[VOICENUM] = {60000, 30000, 10000, 20000};   // 32 bit phase increment, see below
-//volatile uint32_t ulPhaseIncrement[VOICENUM] = {120000000, 8000000, 12000000, 15000000};   // 32 bit phase increment, see below
 #define INCREMENT_ONE_FIXEDPOINT 1048576
 volatile uint32_t ulPhaseIncrement[VOICENUM] = {voiceFrequency[0] * INCREMENT_ONE_FIXEDPOINT, voiceFrequency[1] * INCREMENT_ONE_FIXEDPOINT, voiceFrequency[2] * INCREMENT_ONE_FIXEDPOINT, voiceFrequency[3] * INCREMENT_ONE_FIXEDPOINT};   // 32 bit phase increment, see below
 int * voiceParam[6] = {&attackTime[0], &decayTime[0], &sustainTime[0], &sustainLevel[0], &releaseTime[0], &voiceFrequency[0]};
@@ -49,27 +42,7 @@ unsigned char envelopeProgress[VOICENUM] = {0, 0, 0, 0}; // 255 = the envelope i
 int voiceN = 0;
 int voiceParameterN = 0;
 int ctrl = 0;
-int val = 0;
-//bool sequences[VOICENUM][8] = {{true, false, false, false, true, false, false, false}, 
-//                               {false, false, true, false, false, false, false, false},
-//                               {true, false, true, true, false, true, false, false},
-//                               {false, true, false, false, true, false, true, false}};
-//bool sequences[VOICENUM][8] = {{true, true, true, true, true, true, true, true}, 
-//                               {false, true, false, true, false, true, false, true},
-//                               {false, true, true, true, false, true, true, true},
-//                               {true, false, false, false, true, false, false, false}};
-/*bool sequences[VOICENUM][8] = {{true, false, false, false, true, false, true, false}, 
-                               {false, false, true, true, true, true, true, true},
-                               {false, false, false, false, true, true, false, false},
-                               {false, false, false, false, false, false, true, true}};*/
-/*bool sequences[VOICENUM][8] = {{true, true, true, true, true, true, true, true},
-                               {false, false, false, false, false, false, false, true},
-                               {false, false, false, false, false, false, false, true},
-                               {false, false, false, false, false, false, false, true}};*/
-/*bool sequences[VOICENUM][8] = {{true, true, false, false, false, false, false, false},
-                               {false, false, true, true, false, false, false, false},
-                               {false, false, false, false, true, true, false, false},
-                               {false, false, false, false, false, false, true, true}};*/                               
+int val = 0;                             
 bool sequences[VOICENUM][8] = {{false, false, false, false, false, false, false, false},
                                {false, false, false, false, false, false, false, false},
                                {false, false, false, false, false, false, false, false},
@@ -82,12 +55,7 @@ byte buttons[] = {22, 23, 24, 25, 26, 27, 28, 29, 48, 49, 50, 51, 52, 53, 8};
 // we will track if a button is just pressed, just released, or 'currently pressed' 
 byte pressed[NUMBUTTONS], justpressed[NUMBUTTONS], justreleased[NUMBUTTONS];
   
-//int seqButtonState[N] = {LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW}; 
 int seqLedState[N] = {LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW}; 
-//long lastSeqDebounceTime[N] = {0, 0, 0, 0, 0, 0, 0, 0};  
-//long debounceDelay = 50;    
-//bool sendOn[N] = {true, true, true, true, true, true, true, true};
-//bool sendOff[N] = {false, false, false, false, false, false, false, false};
 
 LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
 
@@ -216,33 +184,11 @@ void audioHandler() {
     }
     
     // get the current sample  
-    //uint32_t ulOutput = nSineTable[ulPhaseAccumulator[0]>>20] ^ nSquareTable[ulPhaseAccumulator[1]>>20]; 
-    //uint32_t ulOutput = ((nSineTable[ulPhaseAccumulator[0]>>20] + nSquareTable[ulPhaseAccumulator[1]>>20]) >> 1) * envelopeVolume; 
-    //uint32_t ulOutput = (nSineTable[ulPhaseAccumulator[0]>>20] * envelopeVolume[0]) ^ (nSquareTable[ulPhaseAccumulator[1]>>20] * envelopeVolume[1]) ^ (nSineTable[ulPhaseAccumulator[2]>>20] * envelopeVolume[2]) ^ (nSquareTable[ulPhaseAccumulator[3]>>20] * envelopeVolume[3]); 
-    //uint32_t ulOutput = (nSineTable[ulPhaseAccumulator[0]>>20] * envelopeVolume[0]) ^ (nSquareTable[ulPhaseAccumulator[1]>>20] * 0) ^ (nSineTable[ulPhaseAccumulator[2]>>20] * 0) ^ (nSquareTable[ulPhaseAccumulator[3]>>20] * 0); 
-    //ulOutput = ulOutput ^ (nSineTable[ulPhaseAccumulator[i]>>20] * envelopeVolume[i]);
     // filtered:
     //ulOutput = ulOutput + filter((nSineTable[ulPhaseAccumulator[i]>>20] * envelopeVolume[i]), q[i], f[i], fb[i]);
-    // nonfiltered: 
-    //ulOutput = ulOutput + (nSineTable[ulPhaseAccumulator[i]>>20] * envelopeVolume[i]);
-    //ulOutput[i] = filter(*(&nSineTable[0] + (ulPhaseAccumulator[i]>>20)) * envelopeVolume[i], q[i], f[i], fb[i]); // no loud noise at start, when filter is here and not in for loop sampleOsc += ulOutput[i]
-    //ulOutput[i] = *(&nSineTable[0] + (ulPhaseAccumulator[i]>>20)) * envelopeVolume[i] >> 10;
     ulOutput[i] = *(soundType[i] + (ulPhaseAccumulator[i]>>20)) * envelopeVolume[i] >> 10;
-    //ulOutput[i] = *(&nSineTable[0] + (ulPhaseAccumulator[i]>>20));
     //globalOut = ulOutput[i];  // for debugging (Serial.println())
   }
-
-  //ulOutput = ulOutput + filter((nSineTable[ulPhaseAccumulator[0]>>20] * envelopeVolume[0]), q[0], f[0]);
-  //ulOutput = ulOutput + filter((nSquareTable[ulPhaseAccumulator[1]>>20] * envelopeVolume[1]), q[1], f[1]);    
-  //ulOutput = ulOutput + filter((nSawTable[ulPhaseAccumulator[2]>>20] * envelopeVolume[2]), q[2], f[2]);  
-  //ulOutput = ulOutput + filter((nTriangleTable[ulPhaseAccumulator[3]>>20] * envelopeVolume[3]), q[3], f[3]); 
-
-  //ulOutput = ulOutput + (nSineTable[ulPhaseAccumulator[0]>>20] * envelopeVolume[0]);
-  //ulOutput = ulOutput + (nSquareTable[ulPhaseAccumulator[1]>>20] * envelopeVolume[1]);    
-  //ulOutput = ulOutput + (nSawTable[ulPhaseAccumulator[2]>>20] * envelopeVolume[2]);  
-  //ulOutput = ulOutput + (nTriangleTable[ulPhaseAccumulator[3]>>20] * envelopeVolume[3]); 
-
-  //ulOutput = lfo(ulOutput);
 
   int32_t sampleOsc;
   for (int i = 0; i < VOICENUM; i++)
@@ -266,80 +212,53 @@ void audioHandler() {
   // write to DAC1
   //dacc_set_channel_selection(DACC_INTERFACE, 1);
   //dacc_write_conversion_data(DACC_INTERFACE, sampleOsc);
-  //Serial.println("a");
 }
 
 void envelopeHandler() {
-  //Serial.print(", envelopeVolume[3]: ");
-  //Serial.println(envelopeVolume[0]);  
   int i;
-  //Serial.println("progres");
-  //Serial.print(", envelopeVolume[3]: ");
-  //Serial.println(envelopeVolume[0]);
   for (i = 0; i < VOICENUM; i++) {
-  //Serial.print(", envelopeVolume[3]: ");
-  //Serial.println(envelopeVolume[0]);    
-    switch (envelopeProgress[i]) {
-      //Serial.print(", envelopeVolume[3]: ");
-      //Serial.println(envelopeVolume[0]);      
+    switch (envelopeProgress[i]) {  
       case 0: // ATTACK
-        //Serial.println("case 0");
-        //attackStartTime = millis();
-        //Serial.println(millis());
-        //Serial.println(attackStartTime);
-        //Serial.println(millis() - attackStartTime);
-
         if ((millis() - attackStartTime[i]) > attackTime[i]) {
           decayStartTime[i] = millis();            
           envelopeProgress[i]= 1;
           }
         else {
           envelopeVolume[i] = map(millis(), attackStartTime[i], attackStartTime[i] + attackTime[i], 0, 1023);
-          //Serial.print("i: ");          
-          //Serial.print(i);
-          //Serial.print(", envelopeVolume[3]: ");
-          //Serial.println(envelopeVolume[0]);
           }
         break;
         
       case 1: // DECAY
-        //Serial.println("case 1");
         if ((millis() - decayStartTime[i]) > decayTime[i]) {
           sustainStartTime[i] = millis();          
           envelopeProgress[i] = 2;
           }    
         else {
           envelopeVolume[i] = map(millis(), decayStartTime[i], decayStartTime[i] + decayTime[i], 1023, voiceParam[1][voiceN]);
-          //Serial.println(envelopeVolume);        
           }        
         break;
 
       case 2: // SUSTAIN
-        //Serial.println("case 2");
         if ((millis() - sustainStartTime[i]) > sustainTime[i]) {
           releaseStartTime[i] = millis();          
           envelopeProgress[i] = 3;
           }    
         else {
           envelopeVolume[i] = sustainLevel[i];
-          //Serial.println(envelopeVolume);        
         }
         break;
 
       case 3: // RELEASE
-        //Serial.println("case 3");
         if ((millis() - releaseStartTime[i]) > releaseTime[i]) {
           envelopeProgress[i] = 255;
           }    
       else {
         envelopeVolume[i] = map(millis(), releaseStartTime[i], releaseStartTime[i] + releaseTime[i], voiceParam[1][voiceN], 0);
-        //Serial.println(envelopeVolume[i]);        
         }
         break;
 
       case 255: // MUTE
         envelopeVolume[i] = 0;
-        //Serial.println("case 255");
         break;       
       }
     }
@@ -354,17 +273,10 @@ void trigger(int i) {
 int st = 0;
 void sequencer() {
   int i, j;
-
-  //Serial.print("st: ");
-  //Serial.println(st);
   
   for (j = 0; j < VOICENUM; j++) {
     if (sequences[j][st] == true)
       trigger(j);
-      //Serial.print("j: ");
-      //Serial.print(j);
-      //Serial.print(", seq: ");
-      //Serial.println(sequences[j][st]);
     }
     
   if (st == 7) 
@@ -418,19 +330,12 @@ void buttonsHandler() {
     }
     previousstate[index] = currentstate[index];   // keep a running tally of the buttons
   }
-  //Serial.println("---");  
-  //Serial.println(justpressed[0]);    
-  //Serial.println("---");  
 }
 
 void ledsHandler() {
-  //Serial.println(voiceN);
   for (int i = 0; i < N; i++) {
-    //digitalWrite(i + 30, seqLedState[i]);
-    //Serial.print(sequences[voiceN][i]);
     digitalWrite(i + 30, sequences[voiceN][i]);
     }
-    //Serial.println();    
   }
 
 void showValue(int val) {
@@ -476,9 +381,7 @@ void lcdHandler() {
       lcd.print("VoiceFreq: ");    
       break;
     }
-    
-    //lcd.print(*voiceParam[voiceParameterN]);  
-    showValue(voiceParam[voiceParameterN][voiceN]);
+  showValue(voiceParam[voiceParameterN][voiceN]);
   }
 
 bool locked = false;
@@ -487,13 +390,6 @@ void potsHandler() {
   //analog.update();    
   static int last = 0;
   int act = analogRead(0); 
-  //Serial.print("last: ");  
-  //Serial.println(last);
-  //Serial.print("act: ");  
-  //Serial.println(act);  
-  //if (act > (last + 20) || act < (last - 20)) {
-  //  voiceParam[voiceParameterN][voiceN] = act;
-  //  last = act;
   //if (analog.hasChanged()) {
   //  voiceParam[voiceParameterN][voiceN] = analog.getValue();
   //  lcdHandler();
@@ -568,7 +464,6 @@ void loadSettings() {
   for (int i = 0; i < 6; i++) {
     for (int j = 0; j < 4; j++) {
         memcpy(voiceParam[i], store.readAddress(4 + i*16), 4 * sizeof(int));
-        //voiceParam[i][j] = store.read(4 + (i * 4) + j);
     }
   }
   memcpy(sequences, store.readAddress(4 + 24 * sizeof(int)), 32);
@@ -583,7 +478,6 @@ void loadSettings() {
   
 void setup() {
   Serial.begin(9600);  
-  //Serial.println(SAMPLES_PER_CYCLE_FIXEDPOINT);      
 
    byte numDigits = 1;   
    byte digitPins[] = {6, 7};
@@ -640,13 +534,11 @@ void setup() {
   createSquareTable(100);  
   createSawTable();
   createTriangleTable();
-  //Serial.println(envelopeVolume[0]);  
 
   analogWrite(DAC0, 0);
   analogWrite(DAC1, 0);
 
   playSound();
-  //Serial.println(SAMPLES_PER_CYCLE_FIXEDPOINT);    
 }
 
 int cnt = 0;
@@ -654,13 +546,8 @@ int cnt = 0;
 bool stored = false;
 
 void loop() { 
-  // put your main code here, to run repeatedly:
-  //Serial.print("vol: ");
-  //Serial.println(envelopeVolume[0]);
-  //Serial.print("prog: ");
-  //Serial.println(envelopeProgress[3]);        
+  // put your main code here, to run repeatedly:      
   envelopeHandler();  
-  //Serial.println("start");
   buttonsHandler();    
   ledsHandler();   
   potsHandler();
@@ -668,9 +555,7 @@ void loop() {
   sevseg.refreshDisplay();
    
   // temp sequencer buttons
-  for (int i = 0; i < 8; i++) {   
-    //Serial.print(i);  
-    //Serial.println(sevseg.getResOnSegments());       
+  for (int i = 0; i < 8; i++) {       
     if (pressed[i] && sequences[voiceN][i]) {         // justpressed works equally bad here
       sequences[voiceN][i] = false;
       seqLedState[i] = LOW;
@@ -716,19 +601,4 @@ void loop() {
     playSound();
 
   clearJust();
-  
-  //Serial.println("---");  
-  //Serial.println(justpressed[0]);  
-  //Serial.println("---");
-  //Serial.println(cnt);
-  //Serial.println("end");
-  //Serial.println(voiceParameterN);    
-  //Serial.println(voiceParam[voiceParameterN][voiceN]);      
-  //Serial.println(voiceN);      
-  //for (int i = 0; i < 8; i++) {
-  //    Serial.print(digitalRead(38 + i));
-  //    }
-  //Serial.println(voiceN);
-  //Serial.print("b: ");
-  //Serial.println(sevseg.getResOnSegments());
 }
