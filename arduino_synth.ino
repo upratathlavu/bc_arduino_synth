@@ -4,9 +4,13 @@
 #include <ResponsiveAnalogRead.h>
 #include <DueFlashStorage.h>
 
+
 //************* COMMON DEFINITIONS
-#define N 8 
+#define NOTENUM 8 
 #define VOICENUM 4
+#define VOICEPARAMNUM 6 
+#define SUSTLEVELPARAMIDX 3
+
 #define WAVE_SAMPLES 2048
 #define SAMPLE_RATE 44100.0
 #define SAMPLES_PER_CYCLE 2048
@@ -22,7 +26,7 @@ uint8_t q_out = 0.2;
 uint8_t f[VOICENUM] = {50, 50, 50, 50};
 uint8_t f_out = 62;
 
-int buf0,buf1;
+int buf0, buf1;
 // multiply two fixed point numbers (returns fixed point)
 inline
 unsigned int ucfxmul(uint8_t a, uint8_t b)
@@ -89,7 +93,7 @@ uint32_t ulPhaseAccumulator[VOICENUM] = {0, 0, 0, 0};
 // the phase increment controls the rate at which we move through the wave table
 // higher values = higher frequencies
 volatile uint32_t ulPhaseIncrement[VOICENUM] = {voiceFrequency[0] * INCREMENT_ONE_FIXEDPOINT, voiceFrequency[1] * INCREMENT_ONE_FIXEDPOINT, voiceFrequency[2] * INCREMENT_ONE_FIXEDPOINT, voiceFrequency[3] * INCREMENT_ONE_FIXEDPOINT};   // 32 bit phase increment, see below
-int * voiceParam[6] = {&attackTime[0], &decayTime[0], &sustainTime[0], &sustainLevel[0], &releaseTime[0], &voiceFrequency[0]};
+int * voiceParam[VOICEPARAMNUM] = {&attackTime[0], &decayTime[0], &sustainTime[0], &sustainLevel[0], &releaseTime[0], &voiceFrequency[0]};
 int32_t envelopeVolume[VOICENUM] = {0, 0, 0, 0}; // the current volume according to the envelope on a scale from 0 to 1023 (10 bits) - needs to be unsigned so we can multiply with it for modulation
 unsigned long attackStartTime[VOICENUM] = {0, 0, 0, 0};
 unsigned long decayStartTime[VOICENUM] = {0, 0, 0, 0};
@@ -174,7 +178,7 @@ void audioHandler() {
     sampleOsc += ulOutput[i];
   } 
   
-  sampleOsc = sampleOsc / 4;
+  sampleOsc = sampleOsc / VOICENUM;
 
   
   //globalOut = sampleOsc;
@@ -212,7 +216,7 @@ void envelopeHandler() {
           envelopeProgress[i] = 2;
           }    
         else {
-          envelopeVolume[i] = map(millis(), decayStartTime[i], decayStartTime[i] + decayTime[i], 1023, voiceParam[1][voiceN]);
+          envelopeVolume[i] = map(millis(), decayStartTime[i], decayStartTime[i] + decayTime[i], 1023, voiceParam[SUSTLEVELPARAMIDX][voiceN]);
           }        
         break;
 
@@ -231,7 +235,7 @@ void envelopeHandler() {
           envelopeProgress[i] = 255;
           }    
       else {
-        envelopeVolume[i] = map(millis(), releaseStartTime[i], releaseStartTime[i] + releaseTime[i], voiceParam[1][voiceN], 0);
+        envelopeVolume[i] = map(millis(), releaseStartTime[i], releaseStartTime[i] + releaseTime[i], voiceParam[SUSTLEVELPARAMIDX][voiceN], 0);
         }
         break;
 
@@ -244,7 +248,7 @@ void envelopeHandler() {
 
 
 //************* SEQ
-bool sequences[VOICENUM][8] = {{true, false, false, false, false, false, false, false},
+bool sequences[VOICENUM][NOTENUM] = {{true, false, false, false, false, false, false, false},
                                {false, false, true, false, false, false, false, false},
                                {false, false, false, false, true, false, false, false},
                                {false, false, false, false, false, false, true, false}};     
@@ -265,7 +269,7 @@ void sequencer() {
       trigger(j);
     }
     
-  if (st == 7) 
+  if (st == (NOTENUM - 1)) 
     st = 0;
   else
     st++;
@@ -274,10 +278,10 @@ void sequencer() {
 
 //************* BUTTONS
 #define DEBOUNCE 10  // button debouncer, how many ms to debounce, 5+ ms is usually plenty
+#define NUMBUTTONS sizeof(buttons)
 // here is where we define the buttons that we'll use. button "1" is the first, button "6" is the 6th, etc
 byte buttons[] = {22, 23, 24, 25, 26, 27, 28, 29, 48, 49, 50, 51, 52, 53, 8}; 
 // This handy macro lets us determine how big the array up above is, by checking the size
-#define NUMBUTTONS sizeof(buttons)
 // we will track if a button is just pressed, just released, or 'currently pressed' 
 byte pressed[NUMBUTTONS], justpressed[NUMBUTTONS], justreleased[NUMBUTTONS];
 void clearJust()
@@ -329,10 +333,10 @@ void buttonsHandler() {
 
 
 //************* LEDS
-int seqLedState[N] = {LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW}; 
+int seqLedState[NOTENUM] = {LOW, LOW, LOW, LOW, LOW, LOW, LOW, LOW}; 
 
 void ledsHandler() {
-  for (int i = 0; i < N; i++) {
+  for (int i = 0; i < NOTENUM; i++) {
     digitalWrite(i + 30, sequences[voiceN][i]);
     }
   }
@@ -410,7 +414,7 @@ void potsHandler() {
     if (millis() - lastUnlocked > 500) {
       locked = true;
       last = act;
-      if (voiceParameterN == 3) // sustainLevel
+      if (voiceParameterN == SUSTLEVELPARAMIDX) // sustainLevel
           voiceParam[voiceParameterN][voiceN] = act;
       else
           voiceParam[voiceParameterN][voiceN] = map(act, 0, 1023, 1, 100);
@@ -421,6 +425,7 @@ void potsHandler() {
 
 
 //************* DEVICE CONTROL
+#define SETTINGSSTARTADDR 4
 DueFlashStorage store;
 
 void playSound() {
@@ -447,38 +452,37 @@ void downVoice() {
 
 void upVoiceParameter() {
   ++voiceParameterN;  
-  if (voiceParameterN > (6 - 1))
+  if (voiceParameterN > (VOICEPARAMNUM - 1))
     voiceParameterN = 0;
   }
 
 void downVoiceParameter() {
   --voiceParameterN;  
   if (voiceParameterN < 0)
-    voiceParameterN = (6 - 1);
+    voiceParameterN = (VOICEPARAMNUM - 1);
   }
 
 void storeSettings() {
-  int b[24];
-  byte b2[32];
-  int addr;
-  for (int i = 0; i < 6; i++) {
-    memcpy(&(b[i*4]), voiceParam[i], 4 * sizeof(int));
+  int b[VOICENUM * VOICEPARAMNUM];
+  byte b2[VOICENUM * NOTENUM];
+  for (int i = 0; i < VOICEPARAMNUM; i++) {
+    memcpy(&(b[i*VOICENUM]), voiceParam[i], VOICENUM * sizeof(int));
   }
-  memcpy(b2, sequences, sizeof(bool) * 32);
-  store.write(4, (byte *) b, sizeof(b) * sizeof(int));
-  store.write(4 + 24 * sizeof(int), b2, sizeof(b2));
+  memcpy(b2, sequences, sizeof(bool) * VOICENUM * NOTENUM);
+  store.write(SETTINGSSTARTADDR, (byte *) b, sizeof(b) * sizeof(int));
+  store.write(SETTINGSSTARTADDR + VOICENUM * VOICEPARAMNUM * sizeof(int), b2, sizeof(b2));
   Serial.println("stored");
   }
 
 void loadSettings() {
-  for (int i = 0; i < 6; i++) {
-    for (int j = 0; j < 4; j++) {
-        memcpy(voiceParam[i], store.readAddress(4 + i*16), 4 * sizeof(int));
+  for (int i = 0; i < VOICEPARAMNUM; i++) {
+    for (int j = 0; j < VOICENUM; j++) {
+        memcpy(voiceParam[i], store.readAddress(SETTINGSSTARTADDR + i * VOICENUM * sizeof(int)), VOICENUM * sizeof(int));
     }
   }
-  memcpy(sequences, store.readAddress(4 + 24 * sizeof(int)), 32);
-  for (int i = 0; i < 6; i++) {
-    for (int j = 0; j < 4; j++) {
+  memcpy(sequences, store.readAddress(SETTINGSSTARTADDR + VOICENUM * VOICEPARAMNUM * sizeof(int)), VOICENUM * NOTENUM);
+  for (int i = 0; i < VOICEPARAMNUM; i++) {
+    for (int j = 0; j < VOICENUM; j++) {
       Serial.println(voiceParam[i][j]);
       }
     Serial.println();      
@@ -532,7 +536,7 @@ void setup() {
 
 
   // LEDs
-  for (int i = 0; i < N; i++) {
+  for (int i = 0; i < NOTENUM; i++) {
     pinMode(i + 30, OUTPUT);
   }  
 
@@ -557,7 +561,6 @@ void setup() {
 }
 
 void loop() { 
-  // put your main code here, to run repeatedly:      
   envelopeHandler();  
   buttonsHandler();    
   ledsHandler();   
@@ -566,7 +569,7 @@ void loop() {
   sevseg.refreshDisplay();
    
   // temp sequencer buttons
-  for (int i = 0; i < 8; i++) {       
+  for (int i = 0; i < NOTENUM; i++) {       
     if (pressed[i] && sequences[voiceN][i]) {         // justpressed works equally bad here
       sequences[voiceN][i] = false;
       seqLedState[i] = LOW;
