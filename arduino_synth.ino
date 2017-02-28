@@ -426,6 +426,7 @@ void potsHandler() {
 
 //************* DEVICE CONTROL
 #define SETTINGSSTARTADDR 4
+bool stored = false;
 DueFlashStorage store;
 
 void playSound() {
@@ -490,10 +491,58 @@ void loadSettings() {
   Serial.println("loaded");
   }
 
+void deviceControlHandler() {
+  // temp sequencer buttons
+  for (int i = 0; i < NOTENUM; i++) {       
+    if (pressed[i] && sequences[voiceN][i]) {         // justpressed works equally bad here
+      sequences[voiceN][i] = false;
+      seqLedState[i] = LOW;
+    }
+    else if (pressed[i] && !sequences[voiceN][i]) {   // justpressed works equally bad here
+      sequences[voiceN][i] = true;
+      seqLedState[i] = HIGH;      
+    }
+  }
+
+  // temp settings store
+  if (justpressed[14]) {// or justpressed? both work
+    if (stored == true) {
+      loadSettings();
+      stored = false;
+    }
+    else {
+      storeSettings();
+      stored = true;
+    }
+  }  
+  
+  // temp up down voice parameter
+  if (justpressed[8]) {// or justpressed? both work
+    upVoiceParameter();
+    lcdHandler();
+  }  
+  if (justpressed[9]) {// or justpressed? both work
+    downVoiceParameter();
+    lcdHandler();
+  }
+
+  // temp up down voice
+  if (justpressed[10]) // or justpressed? both work
+    upVoice();  
+  if (justpressed[11]) // or justpressed? both work
+    downVoice();
+
+  // temp play stop 
+  if (pressed[12]) // or justpressed? both work
+    stopSound();
+  if (pressed[13]) // or justpressed? both work
+    playSound();
+
+  clearJust();  
+  }
 
 //************* MAIN
 SevSeg sevseg;
-bool stored = false;
 
 void setup() {
   Serial.begin(9600);  
@@ -565,54 +614,7 @@ void loop() {
   buttonsHandler();    
   ledsHandler();   
   potsHandler();
+  deviceControlHandler();
   sevseg.setNumber(voiceN, 0);  
   sevseg.refreshDisplay();
-   
-  // temp sequencer buttons
-  for (int i = 0; i < NOTENUM; i++) {       
-    if (pressed[i] && sequences[voiceN][i]) {         // justpressed works equally bad here
-      sequences[voiceN][i] = false;
-      seqLedState[i] = LOW;
-    }
-    else if (pressed[i] && !sequences[voiceN][i]) {   // justpressed works equally bad here
-      sequences[voiceN][i] = true;
-      seqLedState[i] = HIGH;      
-    }
-  }
-
-  // temp settings store
-  if (justpressed[14]) {// or justpressed? both work
-    if (stored == true) {
-      loadSettings();
-      stored = false;
-    }
-    else {
-      storeSettings();
-      stored = true;
-    }
-  }  
-  
-  // temp up down voice parameter
-  if (justpressed[8]) {// or justpressed? both work
-    upVoiceParameter();
-    lcdHandler();
-  }  
-  if (justpressed[9]) {// or justpressed? both work
-    downVoiceParameter();
-    lcdHandler();
-  }
-
-  // temp up down voice
-  if (justpressed[10]) // or justpressed? both work
-    upVoice();  
-  if (justpressed[11]) // or justpressed? both work
-    downVoice();
-
-  // temp play stop 
-  if (pressed[12]) // or justpressed? both work
-    stopSound();
-  if (pressed[13]) // or justpressed? both work
-    playSound();
-
-  clearJust();
 }
