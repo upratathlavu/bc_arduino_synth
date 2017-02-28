@@ -343,6 +343,8 @@ void ledsHandler() {
 
 
 //************* LCD
+int whatDisplay = 0;  // 0 - params; 1 - load; 2 - save
+unsigned long whatDisplayTimer = 0;
 LiquidCrystal lcd(12, 11, 5, 4, 3, 2);
 
 void showValue(int val) {
@@ -367,28 +369,47 @@ void showValue(int val) {
 
 void lcdHandler() {
   lcd.clear();  
-  
-  switch (voiceParameterN) {
+
+  switch (whatDisplay) {
     case 0:
-      lcd.print("AttTime: ");      
-      break;      
+      switch (voiceParameterN) {
+        case 0:
+          lcd.print("AttTime: ");      
+          break;      
+        case 1:
+          lcd.print("DecTime: ");
+          break;      
+        case 2:      
+          lcd.print("SustTime: ");    
+          break;      
+        case 3:      
+          lcd.print("SustLevel: ");        
+          break;      
+        case 4:      
+          lcd.print("RelTime: ");
+          break;      
+        case 5:      
+          lcd.print("VoiceFreq: ");    
+          break;
+        }
+          
+      showValue(voiceParam[voiceParameterN][voiceN]);
+    break;
+    
     case 1:
-      lcd.print("DecTime: ");
-      break;      
-    case 2:      
-      lcd.print("SustTime: ");    
-      break;      
-    case 3:      
-      lcd.print("SustLevel: ");        
-      break;      
-    case 4:      
-      lcd.print("RelTime: ");
-      break;      
-    case 5:      
-      lcd.print("VoiceFreq: ");    
+      if (millis() - whatDisplayTimer < 500)
+        lcd.print("saved");
+      else
+        whatDisplay = 0;  // params
+      break;
+    
+    case 2:
+      if (millis() - whatDisplayTimer < 500)
+        lcd.print("loaded");
+      else
+        whatDisplay = 0;  // params
       break;
     }
-  showValue(voiceParam[voiceParameterN][voiceN]);
   }
 
 
@@ -473,6 +494,9 @@ void storeSettings() {
   store.write(SETTINGSSTARTADDR, (byte *) b, sizeof(b) * sizeof(int));
   store.write(SETTINGSSTARTADDR + VOICENUM * VOICEPARAMNUM * sizeof(int), b2, sizeof(b2));
   Serial.println("stored");
+
+  whatDisplay = 1;  // save
+  whatDisplayTimer = millis();
   }
 
 void loadSettings() {
@@ -489,6 +513,9 @@ void loadSettings() {
     Serial.println();      
     }
   Serial.println("loaded");
+
+  whatDisplay = 2;  // load
+  whatDisplayTimer = millis();
   }
 
 void deviceControlHandler() {
